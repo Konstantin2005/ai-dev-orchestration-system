@@ -1,0 +1,10 @@
+{
+  "name": "ai-dev-graph-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "@langchain/langgraph": "^0.2.0",
+    "@langchain/openai": "^0.4.0"
+  }
+}

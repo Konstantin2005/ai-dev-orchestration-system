@@ -1,0 +1,17 @@
+{
+  "name": "ai-dev-orchestration-system",
+  "version": "0.2.0",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@langchain/langgraph": "^0.2.0",
+    "@langchain/openai": "^0.4.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "graph:run": "node runtime/graph/index.js"
+  }
+}
