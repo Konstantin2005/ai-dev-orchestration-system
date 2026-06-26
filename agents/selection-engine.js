@@ -56,11 +56,12 @@ class SelectionEngine {
     const repoLang = context.language || 'unknown';
 
     const weights = {
-      taskFit: 0.35,
-      speed: 0.20,
-      cost: 0.15,
+      taskFit: 0.30,
+      speed: 0.15,
+      cost: 0.10,
       reliability: 0.20,
-      languageMatch: 0.10
+      languageMatch: 0.10,
+      historicalPerformance: 0.15
     };
 
     const taskFit = this._scoreTaskFit(agent, taskDomain, taskComplexity);
@@ -68,13 +69,15 @@ class SelectionEngine {
     const cost = this._scoreCost(agent);
     const reliability = this._scoreReliability(agent);
     const languageMatch = this._scoreLanguageMatch(agent, repoLang);
+    const historicalPerformance = this._scoreHistoricalPerformance(agent, context);
 
     const raw = {
       taskFit: taskFit * weights.taskFit,
       speed: speed * weights.speed,
       cost: cost * weights.cost,
       reliability: reliability * weights.reliability,
-      languageMatch: languageMatch * weights.languageMatch
+      languageMatch: languageMatch * weights.languageMatch,
+      historicalPerformance: historicalPerformance * weights.historicalPerformance
     };
 
     const total = Object.values(raw).reduce((sum, v) => sum + v, 0);
@@ -86,9 +89,27 @@ class SelectionEngine {
         speed: { score: speed, weight: weights.speed, weighted: raw.speed },
         cost: { score: cost, weight: weights.cost, weighted: raw.cost },
         reliability: { score: reliability, weight: weights.reliability, weighted: raw.reliability },
-        languageMatch: { score: languageMatch, weight: weights.languageMatch, weighted: raw.languageMatch }
+        languageMatch: { score: languageMatch, weight: weights.languageMatch, weighted: raw.languageMatch },
+        historicalPerformance: { score: historicalPerformance, weight: weights.historicalPerformance, weighted: raw.historicalPerformance }
       }
     };
+  }
+
+  _scoreHistoricalPerformance(agent, context) {
+    const history = context.agentHistory || [];
+    const agentHistory = history.filter(h => h.agentId === agent.id);
+    if (agentHistory.length === 0) return 0.5;
+
+    const completed = agentHistory.filter(h => h.status === 'COMPLETED').length;
+    const successRate = completed / agentHistory.length;
+
+    const avgDuration = agentHistory
+      .filter(h => h.duration)
+      .reduce((sum, h) => sum + h.duration, 0) / agentHistory.length;
+
+    const speedScore = avgDuration < 5000 ? 1.0 : avgDuration < 30000 ? 0.7 : 0.4;
+
+    return (successRate * 0.6 + speedScore * 0.4);
   }
 
   _estimateComplexity(task) {

@@ -8,7 +8,38 @@ class AgentMarketplace {
       return this._executeSingle(task, agentIds[0] || 'langgraph', context);
     }
 
+    if (mode === 'smart') {
+      return this._executeSmart(task, agentIds, context);
+    }
+
     return this._executeMarketplace(task, agentIds, context);
+  }
+
+  async _executeSmart(task, agentIds, context) {
+    const marketplaceResult = await this._executeMarketplace(task, agentIds, context);
+
+    if (marketplaceResult.results.length >= 2) {
+      try {
+        const ComparisonEngine = require('./comparison-engine').ComparisonEngine;
+        const engine = new ComparisonEngine(this.registry);
+        const comparison = engine.compare(
+          marketplaceResult.results.map(r => ({
+            agent: r.agent,
+            name: r.name,
+            type: r.type,
+            status: r.status,
+            duration: r.duration,
+            output: { files: [] }
+          }))
+        );
+        marketplaceResult.comparison = comparison;
+        marketplaceResult.winner = comparison.winner;
+      } catch (err) {
+        console.error(`[MARKETPLACE] Smart comparison failed: ${err.message}`);
+      }
+    }
+
+    return marketplaceResult;
   }
 
   async _executeSingle(task, agentId, context) {

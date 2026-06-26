@@ -2,7 +2,7 @@ const { callOpenAIJSON } = require('../openai');
 const { initRegistry, getDefaultRegistry } = require('../../../agents/registry');
 const { SelectionEngine } = require('../../../agents/selection-engine');
 
-const ARCHITECT_SYSTEM_PROMPT = `You are the Architect AI for a multi-agent software engineering system.
+const ARCHITECT_SYSTEM_PROMPT = `You are the Principal Architect AI for a multi-agent, multi-repo Control Plane system.
 Given a GitHub Issue, generate an architecture plan.
 
 Respond with JSON ONLY in this exact format:
@@ -10,7 +10,13 @@ Respond with JSON ONLY in this exact format:
   "summary": "Brief architecture summary",
   "flow": "Step-by-step execution flow",
   "decisions": ["Decision 1", "Decision 2"],
-  "log": "Reasoning log explaining the architecture choices"
+  "log": "Reasoning log explaining the architecture choices",
+  "agentRanking": {
+    "ranking": [{"agent": "name", "reason": "why"}],
+    "selected": "best agent",
+    "fallback": "backup agent",
+    "recommendMarketplace": true/false
+  }
 }
 
 Rules:
@@ -18,8 +24,9 @@ Rules:
 - flow must describe the step-by-step process
 - decisions must be 2-5 key architectural decisions
 - Be specific to the issue, not generic
-- The Agent Selection section tells you which agent was chosen. Consider this in your architecture plan.
-- If the issue is complex or critical, consider recommending MARKETPLACE mode (run multiple agents and compare).`;
+- The Agent Selection section shows scored agents. Consider this ranking.
+- agentRanking: rank agents, pick best + fallback. recommendMarketplace=true if issue is complex or high-risk.
+- If multi-repo is involved (cross-repo work), include that in flow.`;
 
 async function architectNode(state) {
   const startTime = Date.now();
@@ -44,9 +51,17 @@ async function architectNode(state) {
       { language: state.context?.language }
     );
 
+    const comparisonTableStr = (selectionResult.comparisonTable || [])
+      .map(c => `${c.name} (${c.agent}): ${c.totalScore} — ${JSON.stringify(c.breakdown)}`)
+      .join('\n');
+
+    const marketplaceStr = (selectionResult.marketplace || [])
+      .map(m => `${m.name} (${m.agent})`)
+      .join(', ');
+
     const agentSelectionInfo = selectionResult.selected
-      ? `Agent: ${selectionResult.selected.name} (score: ${selectionResult.comparisonTable[0]?.totalScore || 'N/A'})\nReason: ${selectionResult.reasoning}`
-      : 'Agent: default (langgraph) - no selection available';
+      ? `Selected: ${selectionResult.selected.name} (score: ${selectionResult.comparisonTable[0]?.totalScore || 'N/A'})\nReason: ${selectionResult.reasoning}\n\nRanking:\n${comparisonTableStr}\n\nMarketplace candidates: ${marketplaceStr || 'none'}\n\nRisks: ${JSON.stringify(selectionResult.riskAnalysis || [])}`
+      : 'Selected: langgraph (default) — no selection available';
 
     const userInput = `Issue #${state.issue.id}: ${state.issue.title}\n\n${state.issue.body}\n\nSlug: ${state.issue.slug}\n\nAgent Selection:\n${agentSelectionInfo}`;
 
@@ -65,6 +80,11 @@ async function architectNode(state) {
       status: 'success'
     };
 
+    const agentRanking = result.agentRanking || {};
+    const recommendMarketplace = agentRanking.recommendMarketplace ||
+      (selectionResult.marketplace && selectionResult.marketplace.length >= 2) ||
+      false;
+
     return {
       architecture: {
         summary: result.summary || 'No summary provided',
@@ -78,11 +98,19 @@ async function architectNode(state) {
           reasoning: selectionResult.reasoning,
           comparisonTable: selectionResult.comparisonTable,
           fallback: selectionResult.fallback ? selectionResult.fallback.id : null,
+          fallbackName: selectionResult.fallback ? selectionResult.fallback.name : null,
           risks: selectionResult.riskAnalysis,
           marketplace: selectionResult.marketplace || [],
           marketplaceCandidates: selectionResult.marketplace
             ? selectionResult.marketplace.map(m => `${m.name} (${m.agent})`).join(', ')
-            : 'none'
+            : 'none',
+          recommendMarketplace,
+          agentRanking: agentRanking.ranking || selectionResult.comparisonTable || [],
+          agentStrategy: {
+            selected: agentRanking.selected || (selectionResult.selected ? selectionResult.selected.id : 'langgraph'),
+            fallback: agentRanking.fallback || (selectionResult.fallback ? selectionResult.fallback.id : null),
+            compareMode: recommendMarketplace
+          }
         },
         status: 'done'
       },
