@@ -1,0 +1,29 @@
+{
+  "id": "langgraph",
+  "name": "LangGraph Agent",
+  "framework": "@langchain/langgraph",
+  "version": "1.0.0",
+  "language": "javascript",
+  "runtime": "node",
+  "strengths": [
+    "StateGraph execution with conditional edges",
+    "Parallel agent execution (backend + frontend)",
+    "Built-in zero-trust validation pipeline",
+    "Legacy fallback support",
+    "Low latency (in-process)"
+  ],
+  "weaknesses": [
+    "Requires NPM dependencies",
+    "No built-in multi-model support",
+    "No conversation memory"
+  ],
+  "cost": { "perTask": "low", "apiCalls": 6, "model": "gpt-4o-mini" },
+  "speed": { "latency": "low", "avgExecutionMs": 5000 },
+  "reliability": { "score": 0.95, "fallbackImplemented": true },
+  "bestUseCases": [
+    "Software engineering tasks (code generation)",
+    "GitHub Issue → PR automation",
+    "Multi-step agent pipelines",
+    "Low-latency tasks"
+  ]
+}

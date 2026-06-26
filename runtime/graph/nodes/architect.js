@@ -1,4 +1,6 @@
 const { callOpenAIJSON } = require('../openai');
+const { initRegistry, getDefaultRegistry } = require('../../../agents/registry');
+const { SelectionEngine } = require('../../../agents/selection-engine');
 
 const ARCHITECT_SYSTEM_PROMPT = `You are the Architect AI for a multi-agent software engineering system.
 Given a GitHub Issue, generate an architecture plan.
@@ -15,7 +17,8 @@ Rules:
 - summary must be 2-3 sentences
 - flow must describe the step-by-step process
 - decisions must be 2-5 key architectural decisions
-- Be specific to the issue, not generic`;
+- Be specific to the issue, not generic
+- The Agent Selection section tells you which agent was chosen. Consider this in your architecture plan.`;
 
 async function architectNode(state) {
   const startTime = Date.now();
@@ -29,7 +32,22 @@ async function architectNode(state) {
   }
 
   try {
-    const userInput = `Issue #${state.issue.id}: ${state.issue.title}\n\n${state.issue.body}\n\nSlug: ${state.issue.slug}`;
+    const registry = getDefaultRegistry();
+    if (registry.count() === 0) {
+      await registry.init();
+    }
+
+    const selectionEngine = new SelectionEngine(registry);
+    const selectionResult = await selectionEngine.selectAgent(
+      { title: state.issue.title, body: state.issue.body, number: state.issue.number },
+      { language: state.context?.language }
+    );
+
+    const agentSelectionInfo = selectionResult.selected
+      ? `Agent: ${selectionResult.selected.name} (score: ${selectionResult.comparisonTable[0]?.totalScore || 'N/A'})\nReason: ${selectionResult.reasoning}`
+      : 'Agent: default (langgraph) - no selection available';
+
+    const userInput = `Issue #${state.issue.id}: ${state.issue.title}\n\n${state.issue.body}\n\nSlug: ${state.issue.slug}\n\nAgent Selection:\n${agentSelectionInfo}`;
 
     const result = await callOpenAIJSON(ARCHITECT_SYSTEM_PROMPT, userInput, {
       temperature: 0.3,
@@ -51,6 +69,15 @@ async function architectNode(state) {
         summary: result.summary || 'No summary provided',
         flow: result.flow || 'No flow provided',
         decisions: result.decisions || [],
+        agentSelection: {
+          selected: selectionResult.selected ? selectionResult.selected.id : 'langgraph',
+          selectedName: selectionResult.selected ? selectionResult.selected.name : 'LangGraph (default)',
+          score: selectionResult.comparisonTable[0]?.totalScore || 0,
+          reasoning: selectionResult.reasoning,
+          comparisonTable: selectionResult.comparisonTable,
+          fallback: selectionResult.fallback ? selectionResult.fallback.id : null,
+          risks: selectionResult.riskAnalysis
+        },
         status: 'done'
       },
       logs: {

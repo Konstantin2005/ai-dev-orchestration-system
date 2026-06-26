@@ -1,0 +1,29 @@
+{
+  "id": "custom",
+  "name": "Custom Agent",
+  "framework": "user-defined",
+  "version": "1.0.0",
+  "language": "any",
+  "runtime": "user-defined",
+  "strengths": [
+    "Fully customizable behavior",
+    "Can implement any logic",
+    "No framework limitations",
+    "Good for proprietary integrations"
+  ],
+  "weaknesses": [
+    "Requires manual implementation",
+    "No built-in optimizations",
+    "Maintenance burden on user",
+    "No standard patterns guaranteed"
+  ],
+  "cost": { "perTask": "variable", "apiCalls": 0, "model": "any" },
+  "speed": { "latency": "variable", "avgExecutionMs": 0 },
+  "reliability": { "score": 0.50, "fallbackImplemented": false },
+  "bestUseCases": [
+    "Proprietary business logic",
+    "Internal tool integrations",
+    "Experiments and research",
+    "Framework-specific tasks"
+  ]
+}

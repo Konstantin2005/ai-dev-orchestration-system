@@ -1,0 +1,29 @@
+{
+  "id": "autogen",
+  "name": "AutoGen Agent",
+  "framework": "microsoft/autogen",
+  "version": "0.2.x",
+  "language": "python",
+  "runtime": "docker",
+  "strengths": [
+    "Multi-agent conversation patterns",
+    "Human-in-the-loop support",
+    "Tool/function calling built-in",
+    "Good for research and exploration tasks"
+  ],
+  "weaknesses": [
+    "Python-based, requires Docker",
+    "Higher latency (Docker overhead)",
+    "Less deterministic than LangGraph",
+    "No built-in validation pipeline"
+  ],
+  "cost": { "perTask": "medium", "apiCalls": 8, "model": "gpt-4" },
+  "speed": { "latency": "medium", "avgExecutionMs": 15000 },
+  "reliability": { "score": 0.85, "fallbackImplemented": false },
+  "bestUseCases": [
+    "Research and analysis tasks",
+    "Tasks requiring human feedback",
+    "Conversational multi-agent scenarios",
+    "Exploratory problem solving"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "id": "metagpt",
+  "name": "MetaGPT Agent",
+  "framework": "MetaGPT",
+  "version": "0.8.x",
+  "language": "python",
+  "runtime": "docker",
+  "strengths": [
+    "Full software development pipeline",
+    "Generates requirements, design, tasks, and code",
+    "Structured software engineering process",
+    "Good for greenfield projects"
+  ],
+  "weaknesses": [
+    "Python-based, requires Docker",
+    "Long execution time",
+    "High API cost (many calls)",
+    "Overkill for small tasks",
+    "Less flexible for existing codebases"
+  ],
+  "cost": { "perTask": "high", "apiCalls": 15, "model": "gpt-4" },
+  "speed": { "latency": "high", "avgExecutionMs": 60000 },
+  "reliability": { "score": 0.75, "fallbackImplemented": false },
+  "bestUseCases": [
+    "Greenfield project generation",
+    "Complex multi-file software tasks",
+    "Tasks requiring full SDLC simulation",
+    "Prototyping new features from scratch"
+  ]
+}
