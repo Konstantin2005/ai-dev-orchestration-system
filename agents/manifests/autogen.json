@@ -1,6 +1,8 @@
 {
   "id": "autogen",
   "name": "AutoGen Agent",
+  "type": "conversational",
+  "capabilities": ["research", "analysis"],
   "framework": "microsoft/autogen",
   "version": "0.2.x",
   "language": "python",

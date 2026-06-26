@@ -13,7 +13,7 @@ function defineEdges(graph) {
 
   graph.addConditionalEdges('reviewer', reviewerRouter);
 
-  graph.addConditionalEdges('validation', validationRouter);
+  graph.addConditionalEdges('validate-output', validationRouter);
 
   graph.addEdge('file-writer', END);
 

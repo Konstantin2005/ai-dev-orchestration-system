@@ -1,6 +1,8 @@
 {
   "id": "langgraph",
   "name": "LangGraph Agent",
+  "type": "graph",
+  "capabilities": ["code", "plan", "review"],
   "framework": "@langchain/langgraph",
   "version": "1.0.0",
   "language": "javascript",

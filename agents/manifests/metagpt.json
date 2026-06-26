@@ -1,6 +1,8 @@
 {
   "id": "metagpt",
   "name": "MetaGPT Agent",
+  "type": "graph",
+  "capabilities": ["code", "plan", "full-project"],
   "framework": "MetaGPT",
   "version": "0.8.x",
   "language": "python",

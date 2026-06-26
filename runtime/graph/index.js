@@ -23,7 +23,7 @@ function buildGraph() {
   graph.addNode('frontend', frontendNode);
   graph.addNode('qa', qaNode);
   graph.addNode('reviewer', reviewerNode);
-  graph.addNode('validation', validationNode);
+  graph.addNode('validate-output', validationNode);
   graph.addNode('file-writer', fileWriterNode);
 
   defineEdges(graph);

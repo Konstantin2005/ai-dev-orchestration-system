@@ -35,8 +35,19 @@ class SelectionEngine {
         breakdown: s.score.breakdown
       })),
       fallback,
-      riskAnalysis: this._analyzeRisks(selected, task)
+      riskAnalysis: this._analyzeRisks(selected, task),
+      marketplace: this._suggestMarketplace(scored, task)
     };
+  }
+
+  suggestForMarketplace(task, context = {}, count = 3) {
+    const agents = this.registry.list();
+    const scored = agents.map(agent => ({
+      agent,
+      score: this._calculateScore(agent, task, context)
+    }));
+    scored.sort((a, b) => b.score.total - a.score.total);
+    return scored.slice(0, count).map(s => s.agent.id);
   }
 
   _calculateScore(agent, task, context) {
@@ -208,6 +219,21 @@ class SelectionEngine {
     }
 
     return risks;
+  }
+
+  _suggestMarketplace(scored, task) {
+    const topTypes = new Map();
+    for (const { agent, score } of scored) {
+      const type = agent.type || 'graph';
+      if (!topTypes.has(type) || score.total > topTypes.get(type).score) {
+        topTypes.set(type, { agent: agent.id, name: agent.name, score: score.total });
+      }
+    }
+
+    return Array.from(topTypes.values())
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(t => ({ agent: t.agent, name: t.name }));
   }
 }
 

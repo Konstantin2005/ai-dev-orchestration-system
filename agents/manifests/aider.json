@@ -1,0 +1,30 @@
+{
+  "id": "aider",
+  "name": "Aider Agent",
+  "type": "code",
+  "capabilities": ["code", "edit", "refactor"],
+  "framework": "aider",
+  "version": "0.50.x",
+  "language": "python",
+  "runtime": "cli",
+  "strengths": [
+    "Excellent code editing and refactoring",
+    "Works with existing codebases",
+    "Git-aware changes",
+    "Good for bug fixes and small features"
+  ],
+  "weaknesses": [
+    "CLI dependency (must be installed)",
+    "No multi-step planning",
+    "Limited to code editing (not architecture)"
+  ],
+  "cost": { "perTask": "low", "apiCalls": 2, "model": "gpt-4" },
+  "speed": { "latency": "low", "avgExecutionMs": 8000 },
+  "reliability": { "score": 0.85, "fallbackImplemented": false },
+  "bestUseCases": [
+    "Bug fixes",
+    "Small feature implementation",
+    "Code refactoring",
+    "Test writing"
+  ]
+}

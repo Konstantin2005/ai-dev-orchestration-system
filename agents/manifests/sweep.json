@@ -1,0 +1,30 @@
+{
+  "id": "sweep",
+  "name": "Sweep AI Agent",
+  "type": "hybrid",
+  "capabilities": ["code", "plan", "pr", "research"],
+  "framework": "sweep-pattern",
+  "version": "1.0.0",
+  "language": "python",
+  "runtime": "cli",
+  "strengths": [
+    "Full Issue-to-PR automation",
+    "Multi-step: plan → code → review",
+    "Git-aware with branch creation",
+    "Structured output"
+  ],
+  "weaknesses": [
+    "Complex setup",
+    "Requires GitHub token",
+    "Not suitable for simple edits"
+  ],
+  "cost": { "perTask": "medium", "apiCalls": 5, "model": "gpt-4" },
+  "speed": { "latency": "medium", "avgExecutionMs": 30000 },
+  "reliability": { "score": 0.80, "fallbackImplemented": false },
+  "bestUseCases": [
+    "Full Issue-to-PR automation",
+    "Multi-file changes",
+    "Feature implementation",
+    "Refactoring with PR"
+  ]
+}

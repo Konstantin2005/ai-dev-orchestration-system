@@ -1,6 +1,8 @@
 {
   "id": "crewai",
   "name": "CrewAI Agent",
+  "type": "conversational",
+  "capabilities": ["research", "content"],
   "framework": "crewai",
   "version": "0.30.x",
   "language": "python",

@@ -18,7 +18,8 @@ Rules:
 - flow must describe the step-by-step process
 - decisions must be 2-5 key architectural decisions
 - Be specific to the issue, not generic
-- The Agent Selection section tells you which agent was chosen. Consider this in your architecture plan.`;
+- The Agent Selection section tells you which agent was chosen. Consider this in your architecture plan.
+- If the issue is complex or critical, consider recommending MARKETPLACE mode (run multiple agents and compare).`;
 
 async function architectNode(state) {
   const startTime = Date.now();
@@ -72,11 +73,16 @@ async function architectNode(state) {
         agentSelection: {
           selected: selectionResult.selected ? selectionResult.selected.id : 'langgraph',
           selectedName: selectionResult.selected ? selectionResult.selected.name : 'LangGraph (default)',
+          selectedType: selectionResult.selected ? selectionResult.selected.type : 'graph',
           score: selectionResult.comparisonTable[0]?.totalScore || 0,
           reasoning: selectionResult.reasoning,
           comparisonTable: selectionResult.comparisonTable,
           fallback: selectionResult.fallback ? selectionResult.fallback.id : null,
-          risks: selectionResult.riskAnalysis
+          risks: selectionResult.riskAnalysis,
+          marketplace: selectionResult.marketplace || [],
+          marketplaceCandidates: selectionResult.marketplace
+            ? selectionResult.marketplace.map(m => `${m.name} (${m.agent})`).join(', ')
+            : 'none'
         },
         status: 'done'
       },
