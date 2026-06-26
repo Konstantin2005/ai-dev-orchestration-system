@@ -45,13 +45,26 @@ const stateChannels = {
   }
 };
 
+const MAX_BODY_LENGTH = 10240;
+const MAX_TITLE_LENGTH = 200;
+
+function sanitize(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+}
+
+function truncate(str, maxLen) {
+  if (typeof str !== 'string') return '';
+  return str.length > maxLen ? str.slice(0, maxLen) : str;
+}
+
 function createInitialState(issue) {
   return {
     issue: {
-      id: issue.id || null,
-      title: issue.title || '',
-      slug: issue.slug || '',
-      body: issue.body || ''
+      id: (issue && issue.id) || null,
+      title: truncate(sanitize((issue && issue.title) || ''), MAX_TITLE_LENGTH),
+      slug: truncate(sanitize((issue && issue.slug) || ''), 80),
+      body: truncate(sanitize((issue && issue.body) || ''), MAX_BODY_LENGTH)
     },
     architecture: defaultArchitecture(),
     files: [],

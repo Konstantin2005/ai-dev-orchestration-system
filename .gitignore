@@ -8,3 +8,10 @@ Thumbs.db
 .vscode/
 .idea/
 workspace/traces/
+
+# Workspace
+workspace/
+.ai-workspace/
+
+# Project-specific
+.ai-project-context.json

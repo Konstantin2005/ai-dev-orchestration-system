@@ -3,6 +3,13 @@ name: AI Agent Pipeline
 on:
   issues:
     types: [opened]
+  workflow_dispatch:
+    inputs:
+      use_submodule:
+        description: 'Run as submodule inside another repository'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -19,15 +26,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Detect submodule mode
+        id: mode
+        run: |
+          if [ -f ".ai-system/VERSION" ] || [ "${{ github.event.inputs.use_submodule }}" == "true" ]; then
+            echo "is_submodule=true" >> "$GITHUB_OUTPUT"
+            echo "engine_root=.ai-system" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_submodule=false" >> "$GITHUB_OUTPUT"
+            echo "engine_root=." >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           cache: 'npm'
+          cache-dependency-path: ${{ steps.mode.outputs.engine_root }}/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: ${{ steps.mode.outputs.engine_root }}
+
+      - name: Bootstrap engine (submodule mode)
+        if: steps.mode.outputs.is_submodule == 'true'
+        run: |
+          bash "${{ steps.mode.outputs.engine_root }}/engine/bootstrap.sh"
 
       - name: Sanitize input
         id: parse
@@ -51,7 +78,7 @@ jobs:
           fi
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
-      - name: Bootstrap
+      - name: Bootstrap workspace
         if: steps.idem.outputs.skip != 'true'
         run: |
           DIR="${WORK_DIR}/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}"
@@ -68,9 +95,10 @@ jobs:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
           WORKSPACE_DIR: ${{ env.dir }}
+          ENGINE_ROOT: ${{ steps.mode.outputs.engine_root }}
         run: |
           node -e "
-            const { execute } = require('./runtime/graph/index.js');
+            const { execute } = require('./' + process.env.ENGINE_ROOT + '/runtime/graph/index.js');
             execute({
               id: parseInt(process.env.ISSUE_ID),
               title: process.env.ISSUE_TITLE,
@@ -119,12 +147,58 @@ jobs:
         if: steps.idem.outputs.skip != 'true'
         run: |
           DIR="${WORK_DIR}/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}"
+          ENGINE_ROOT="${{ steps.mode.outputs.engine_root }}"
           if [ "$LANGGRAPH_OK" == "true" ]; then
             ls "$DIR"/**/*.md "$DIR"/**/*.json "$DIR"/**/*.js 2>/dev/null || echo "No files found from LangGraph"
           else
             [ ! -f "$DIR/ai-output.json" ] && exit 1
-            node runtime/validate-output.js "${DIR}/" < "$DIR/ai-output.json" || exit 1
+            node "$ENGINE_ROOT/runtime/validate-output.js" "${DIR}/" < "$DIR/ai-output.json" || exit 1
           fi
+
+      - name: Run path-resolver
+        if: steps.idem.outputs.skip != 'true' && steps.mode.outputs.is_submodule == 'true'
+        env:
+          ENGINE_ROOT: ${{ steps.mode.outputs.engine_root }}
+          WORKSPACE_DIR: ${{ env.dir }}
+        run: |
+          node -e "
+            const path = require('path');
+            const fs = require('fs');
+            const { resolvePath } = require(path.resolve(process.env.ENGINE_ROOT, 'runtime/path-resolver'));
+            const workspace = path.resolve(process.env.WORKSPACE_DIR);
+            const projectRoot = path.resolve(process.env.GITHUB_WORKSPACE);
+
+            function walk(dir) {
+              const files = [];
+              if (!fs.existsSync(dir)) return files;
+              const entries = fs.readdirSync(dir, { withFileTypes: true });
+              for (const entry of entries) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  files.push(...walk(full));
+                } else {
+                  files.push(full);
+                }
+              }
+              return files;
+            }
+
+            const generated = walk(workspace);
+            let moved = 0;
+            for (const file of generated) {
+              const relative = path.relative(workspace, file).replace(/\\\\/g, '/');
+              const result = resolvePath(relative, projectRoot);
+              if (result.resolved) {
+                fs.mkdirSync(path.dirname(result.resolved), { recursive: true });
+                fs.copyFileSync(file, result.resolved);
+                console.log('  \u2713', relative, '\u2192', path.relative(projectRoot, result.resolved));
+                moved++;
+              } else {
+                console.log('  \u2013', relative, '(' + result.error + ')');
+              }
+            }
+            console.log('Path resolution complete: ' + moved + ' files resolved');
+          "
 
       - name: Commit and PR
         if: steps.idem.outputs.skip != 'true'
@@ -134,7 +208,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "${{ steps.parse.outputs.branch }}"
-          git add -A "${WORK_DIR}/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}/"
+          git add -A
           git diff --staged --quiet && exit 0
           git commit -m "AI orchestration for #${{ steps.parse.outputs.id }}"
           git push origin "${{ steps.parse.outputs.branch }}"
@@ -153,5 +227,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '## ✅ Pipeline executed\nSee `workspace/issues/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}/`\n\n**Engine:** ${{ env.LANGGRAPH_OK == 'true' && 'LangGraph' || 'Legacy' }}'
+              body: '## \u2705 Pipeline executed\nSee `workspace/issues/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}/`\n\n**Engine:** ${{ env.LANGGRAPH_OK == 'true' && 'LangGraph' || 'Legacy' }}\n**Mode:** ${{ steps.mode.outputs.is_submodule == 'true' && 'Submodule' || 'Standalone' }}'
             });

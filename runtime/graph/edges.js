@@ -13,6 +13,10 @@ function defineEdges(graph) {
 
   graph.addConditionalEdges('reviewer', reviewerRouter);
 
+  graph.addConditionalEdges('validation', validationRouter);
+
+  graph.addEdge('file-writer', END);
+
   return graph;
 }
 
@@ -41,8 +45,8 @@ function qaRouter(state) {
 
 function reviewerRouter(state) {
   if (state._output && state._output.status === 'READY_FOR_PR') {
-    console.error('[EDGES] Reviewer verdict: READY_FOR_PR');
-    return END;
+    console.error('[EDGES] Reviewer verdict: READY_FOR_PR → validation');
+    return 'validation';
   }
 
   if (state._output && state._output.status === 'CHANGES_REQUESTED') {
@@ -54,8 +58,8 @@ function reviewerRouter(state) {
   const reviewerLog = logs.reviewer || '';
 
   if (reviewerLog.includes('READY_FOR_PR') || reviewerLog.includes('ready')) {
-    console.error('[EDGES] Reviewer log indicates READY_FOR_PR');
-    return END;
+    console.error('[EDGES] Reviewer log indicates READY_FOR_PR → validation');
+    return 'validation';
   }
 
   if (reviewerLog.includes('CHANGES_REQUESTED') || reviewerLog.includes('changes')) {
@@ -63,8 +67,25 @@ function reviewerRouter(state) {
     return 'architect';
   }
 
-  console.error('[EDGES] Reviewer verdict unclear, defaulting to END');
+  console.error('[EDGES] Reviewer verdict unclear, defaulting to validation');
+  return 'validation';
+}
+
+function validationRouter(state) {
+  const validation = state.validation || { status: 'pending', errors: [] };
+
+  if (validation.status === 'valid') {
+    console.error('[EDGES] Validation PASSED → file-writer');
+    return 'file-writer';
+  }
+
+  if (validation.status === 'invalid' || validation.status === 'failed') {
+    console.error(`[EDGES] Validation FAILED (${validation.errors.length} errors), stopping pipeline`);
+    return END;
+  }
+
+  console.error('[EDGES] Validation pending, stopping pipeline');
   return END;
 }
 
-module.exports = { defineEdges, qaRouter, reviewerRouter };
+module.exports = { defineEdges, qaRouter, reviewerRouter, validationRouter };

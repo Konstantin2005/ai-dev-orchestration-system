@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "output": {
+    "backend": "src/",
+    "frontend": "src/",
+    "qa": "tests/",
+    "docs": "docs/"
+  },
+  "language": "auto",
+  "testFramework": "auto"
+}

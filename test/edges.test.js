@@ -1,7 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { qaRouter, reviewerRouter } = require('../runtime/graph/edges');
+const { qaRouter, reviewerRouter, validationRouter } = require('../runtime/graph/edges');
 
 describe('edges.js', () => {
   describe('qaRouter', () => {
@@ -83,9 +83,9 @@ describe('edges.js', () => {
   });
 
   describe('reviewerRouter', () => {
-    it('routes to __end__ when READY_FOR_PR', () => {
+    it('routes to validation when READY_FOR_PR', () => {
       const state = { _output: { status: 'READY_FOR_PR' }, logs: {} };
-      assert.equal(reviewerRouter(state), '__end__');
+      assert.equal(reviewerRouter(state), 'validation');
     });
 
     it('routes to architect when CHANGES_REQUESTED', () => {
@@ -93,12 +93,12 @@ describe('edges.js', () => {
       assert.equal(reviewerRouter(state), 'architect');
     });
 
-    it('routes to __end__ when reviewer log contains READY_FOR_PR', () => {
+    it('routes to validation when reviewer log contains READY_FOR_PR', () => {
       const state = {
         _output: undefined,
         logs: { reviewer: 'Everything looks good. READY_FOR_PR' }
       };
-      assert.equal(reviewerRouter(state), '__end__');
+      assert.equal(reviewerRouter(state), 'validation');
     });
 
     it('routes to architect when reviewer log contains CHANGES_REQUESTED', () => {
@@ -117,22 +117,49 @@ describe('edges.js', () => {
       assert.equal(reviewerRouter(state), 'architect');
     });
 
-    it('defaults to __end__ when verdict unclear', () => {
+    it('defaults to validation when verdict unclear', () => {
       const state = {
         _output: undefined,
         logs: { reviewer: 'Some review comments' }
       };
-      assert.equal(reviewerRouter(state), '__end__');
+      assert.equal(reviewerRouter(state), 'validation');
     });
 
     it('handles missing logs gracefully', () => {
       const state = { _output: undefined };
-      assert.equal(reviewerRouter(state), '__end__');
+      assert.equal(reviewerRouter(state), 'validation');
     });
 
     it('handles empty logs', () => {
       const state = { _output: undefined, logs: {} };
-      assert.equal(reviewerRouter(state), '__end__');
+      assert.equal(reviewerRouter(state), 'validation');
+    });
+  });
+
+  describe('validationRouter', () => {
+    it('routes to file-writer when validation valid', () => {
+      const state = { validation: { status: 'valid', errors: [] } };
+      assert.equal(validationRouter(state), 'file-writer');
+    });
+
+    it('routes to __end__ when validation invalid', () => {
+      const state = { validation: { status: 'invalid', errors: ['Error'] } };
+      assert.equal(validationRouter(state), '__end__');
+    });
+
+    it('routes to __end__ when validation failed', () => {
+      const state = { validation: { status: 'failed', errors: ['Critical'] } };
+      assert.equal(validationRouter(state), '__end__');
+    });
+
+    it('routes to __end__ when validation pending', () => {
+      const state = { validation: { status: 'pending', errors: [] } };
+      assert.equal(validationRouter(state), '__end__');
+    });
+
+    it('handles missing validation gracefully', () => {
+      const state = {};
+      assert.equal(validationRouter(state), '__end__');
     });
   });
 });

@@ -1,0 +1,91 @@
+const ALLOWED_EXTENSIONS = ['.md', '.json', '.log', '.txt', '.yml', '.yaml', '.js', '.ts', '.py', '.sh'];
+const FORBIDDEN_PATTERNS = ['../', '..\\', '~', '$HOME', '/etc/', '/proc/', '/dev/'];
+const MAX_CONTENT_LENGTH = 50000;
+const MAX_FILES = 50;
+const REQUIRED_TOP = ['architecture', 'files', 'logs', 'status'];
+const REQUIRED_ARCH = ['summary', 'flow', 'decisions'];
+const REQUIRED_LOGS = ['architect', 'backend', 'frontend', 'qa', 'reviewer'];
+
+function validateOutput(state) {
+  const errors = [];
+
+  if (!state || typeof state !== 'object') {
+    return { valid: false, errors: ['State must be an object'] };
+  }
+
+  for (const key of REQUIRED_TOP) {
+    if (!(key in state)) errors.push(`Missing top-level key: ${key}`);
+  }
+
+  const arch = state.architecture || {};
+  for (const key of REQUIRED_ARCH) {
+    if (!(key in arch)) errors.push(`Missing architecture.${key}`);
+  }
+
+  if (!Array.isArray(state.files)) {
+    errors.push('files must be an array');
+  } else {
+    if (state.files.length === 0) errors.push('files must be non-empty array');
+    if (state.files.length > MAX_FILES) errors.push(`Too many files: ${state.files.length}`);
+
+    for (let i = 0; i < state.files.length; i++) {
+      const f = state.files[i];
+      if (!f || !f.path || !f.content) { errors.push(`File ${i}: missing path/content`); continue; }
+
+      for (const p of FORBIDDEN_PATTERNS) {
+        if (f.path.includes(p)) errors.push(`File ${i}: forbidden pattern "${p}" in path`);
+      }
+
+      const ext = f.path.slice(f.path.lastIndexOf('.'));
+      if (!ALLOWED_EXTENSIONS.includes(ext)) errors.push(`File ${i}: bad extension "${ext}"`);
+
+      if (f.content.length > MAX_CONTENT_LENGTH) errors.push(`File ${i}: content too long (${f.content.length})`);
+    }
+  }
+
+  if (!['READY_FOR_PR', 'CHANGES_REQUESTED'].includes(state.status)) {
+    errors.push(`Invalid status: "${state.status}"`);
+  }
+
+  const logs = state.logs || {};
+  for (const key of REQUIRED_LOGS) {
+    if (!(key in logs)) errors.push(`Missing logs.${key}`);
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+async function validationNode(state) {
+  const startTime = Date.now();
+  console.error(`[VALIDATION] Validating graph output`);
+
+  const output = {
+    architecture: state.architecture,
+    files: state.files || [],
+    logs: state.logs || {},
+    status: state._output ? state._output.status : 'CHANGES_REQUESTED'
+  };
+
+  const result = validateOutput(output);
+
+  const timestamp = new Date().toISOString();
+  const log = `[${timestamp}] [VALIDATION] ${result.valid ? 'PASSED' : 'FAILED'}${result.errors.length ? '\nErrors: ' + result.errors.join('; ') : ''}`;
+
+  console.error(`[VALIDATION] ${result.valid ? 'PASSED' : 'FAILED'} (${result.errors.length} errors)`);
+
+  if (!result.valid) {
+    return {
+      validation: { status: 'invalid', errors: result.errors },
+      logs: { qa: ((state.logs || {}).qa || '') + '\n' + log },
+      execution: { status: 'failed', current_node: 'validation', attempts: (state.execution || {}).attempts || 0 }
+    };
+  }
+
+  return {
+    validation: { status: 'valid', errors: [] },
+    logs: { qa: ((state.logs || {}).qa || '') + '\n' + log },
+    execution: { status: 'running', current_node: 'validation' }
+  };
+}
+
+module.exports = { validationNode, validateOutput };

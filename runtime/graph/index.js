@@ -7,6 +7,8 @@ const { backendNode } = require('./nodes/backend');
 const { frontendNode } = require('./nodes/frontend');
 const { qaNode } = require('./nodes/qa');
 const { reviewerNode } = require('./nodes/reviewer');
+const { validationNode, validateOutput } = require('./nodes/validation');
+const { fileWriterNode, writeFiles } = require('./writers/file-writer');
 const { legacyFallbackNode } = require('./nodes/legacy-fallback');
 const { defineEdges } = require('./edges');
 
@@ -21,6 +23,8 @@ function buildGraph() {
   graph.addNode('frontend', frontendNode);
   graph.addNode('qa', qaNode);
   graph.addNode('reviewer', reviewerNode);
+  graph.addNode('validation', validationNode);
+  graph.addNode('file-writer', fileWriterNode);
 
   defineEdges(graph);
 
@@ -79,11 +83,23 @@ function formatOutput(state) {
   };
 }
 
-async function executeWithFallback(issue) {
+async function executeWithFallback(issue, options = {}) {
+  const projectRoot = options.projectRoot || process.cwd();
+
   try {
     console.error('[INDEX] Starting LangGraph execution...');
     const result = await executeGraph(issue);
     console.error('[INDEX] LangGraph execution completed successfully');
+
+    const validationResult = validateOutput(result);
+    if (!validationResult.valid) {
+      console.error(`[INDEX] Validation failed after graph: ${validationResult.errors.join('; ')}`);
+      return { ...result, _validationErrors: validationResult.errors };
+    }
+
+    const writeResult = await writeFiles({ files: result.files }, projectRoot);
+    console.error(`[INDEX] Written ${writeResult.written.length} files, ${writeResult.errors.length} errors`);
+
     return result;
   } catch (langGraphErr) {
     console.error('[INDEX] LangGraph execution failed, falling back to legacy pipeline');
@@ -94,12 +110,25 @@ async function executeWithFallback(issue) {
       const fallbackResult = await legacyFallbackNode(initialState);
       const output = formatOutput(fallbackResult);
       console.error('[INDEX] Legacy fallback completed');
+
+      const validationResult = validateOutput(output);
+      if (!validationResult.valid) {
+        console.error(`[INDEX] Validation failed after fallback: ${validationResult.errors.join('; ')}`);
+      }
+
+      const writeResult = await writeFiles({ files: output.files }, projectRoot);
+      console.error(`[INDEX] Fallback written ${writeResult.written.length} files`);
+
       return output;
     } catch (legacyErr) {
       console.error(`[INDEX] Legacy fallback also failed: ${legacyErr.message}`);
       throw new Error(`Both LangGraph and legacy pipeline failed: ${langGraphErr.message} | ${legacyErr.message}`);
     }
   }
+}
+
+async function execute(issue, options) {
+  return executeWithFallback(issue, options);
 }
 
 async function execute(issue) {
