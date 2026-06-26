@@ -1,0 +1,3 @@
+workspace/**/ai-raw-response.json
+*.log
+node_modules/
