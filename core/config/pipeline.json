@@ -1,0 +1,15 @@
+{
+  "stages": [
+    { "name": "architect", "parallel": false },
+    { "name": "backend", "parallel": true },
+    { "name": "frontend", "parallel": true },
+    { "name": "qa", "parallel": false },
+    { "name": "reviewer", "parallel": false }
+  ],
+  "timeout": 300000,
+  "retry": {
+    "maxAttempts": 3,
+    "backoff": "exponential",
+    "initialDelay": 1000
+  }
+}

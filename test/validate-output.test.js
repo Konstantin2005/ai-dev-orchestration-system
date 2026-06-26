@@ -6,7 +6,7 @@ const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 
 function runValidator(input, prefix) {
-  const args = ['runtime/validate-output.js'];
+  const args = ['validators/validate-output.js'];
   if (prefix) args.push(prefix);
   const proc = spawnSync('node', args, {
     cwd: join(__dirname, '..'),

@@ -1,0 +1,24 @@
+{
+  "agents": {
+    "architect": {
+      "module": "./src/agents/architect.js",
+      "timeout": 60000
+    },
+    "backend": {
+      "module": "./src/agents/backend.js",
+      "timeout": 120000
+    },
+    "frontend": {
+      "module": "./src/agents/frontend.js",
+      "timeout": 120000
+    },
+    "qa": {
+      "module": "./src/agents/qa.js",
+      "timeout": 60000
+    },
+    "reviewer": {
+      "module": "./src/agents/reviewer.js",
+      "timeout": 60000
+    }
+  }
+}
