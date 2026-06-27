@@ -15,7 +15,11 @@ function defineEdges(graph) {
 
   graph.addConditionalEdges('validate-output', validationRouter);
 
-  graph.addEdge('file-writer', END);
+  graph.addConditionalEdges('file-writer', fileWriterRouter);
+
+  graph.addConditionalEdges('pr-create', prRouter);
+
+  graph.addConditionalEdges('merge', mergeRouter);
 
   return graph;
 }
@@ -44,14 +48,21 @@ function qaRouter(state) {
 }
 
 function reviewerRouter(state) {
+  const review = state.review || { status: 'pending', verdict: null };
+  const fixAttempts = state.pr?.fixAttempts || 0;
+
   if (state._output && state._output.status === 'READY_FOR_PR') {
     console.error('[EDGES] Reviewer verdict: READY_FOR_PR → validation');
-    return 'validation';
+    return 'validate-output';
   }
 
   if (state._output && state._output.status === 'CHANGES_REQUESTED') {
-    console.error('[EDGES] Reviewer verdict: CHANGES_REQUESTED, routing back to architect');
-    return 'architect';
+    if (fixAttempts < 3) {
+      console.error(`[EDGES] CHANGES_REQUESTED, routing to backend for fix (attempt ${fixAttempts + 1})`);
+      return 'backend';
+    }
+    console.error('[EDGES] Max fix attempts reached, routing to validation anyway');
+    return 'validate-output';
   }
 
   const logs = state.logs || {};
@@ -59,16 +70,20 @@ function reviewerRouter(state) {
 
   if (reviewerLog.includes('READY_FOR_PR') || reviewerLog.includes('ready')) {
     console.error('[EDGES] Reviewer log indicates READY_FOR_PR → validation');
-    return 'validation';
+    return 'validate-output';
   }
 
   if (reviewerLog.includes('CHANGES_REQUESTED') || reviewerLog.includes('changes')) {
-    console.error('[EDGES] Reviewer log indicates CHANGES_REQUESTED, routing back to architect');
-    return 'architect';
+    if (fixAttempts < 3) {
+      console.error(`[EDGES] CHANGES_REQUESTED, routing to backend for fix (attempt ${fixAttempts + 1})`);
+      return 'backend';
+    }
+    console.error('[EDGES] Max fix attempts reached, routing to validation anyway');
+    return 'validate-output';
   }
 
   console.error('[EDGES] Reviewer verdict unclear, defaulting to validation');
-  return 'validation';
+  return 'validate-output';
 }
 
 function validationRouter(state) {
@@ -88,4 +103,35 @@ function validationRouter(state) {
   return END;
 }
 
-module.exports = { defineEdges, qaRouter, reviewerRouter, validationRouter };
+function fileWriterRouter(state) {
+  const pr = state.pr || { status: 'none' };
+
+  console.error(`[EDGES] File-writer done, routing to ${pr.status === 'merged' ? 'end' : 'pr-create'}`);
+  return pr.status === 'merged' ? END : 'pr-create';
+}
+
+function prRouter(state) {
+  const pr = state.pr || { status: 'none' };
+
+  if (pr.status === 'open') {
+    console.error('[EDGES] PR open, routing to merge');
+    return 'merge';
+  }
+
+  console.error('[EDGES] PR failed or unknown, ending pipeline');
+  return END;
+}
+
+function mergeRouter(state) {
+  const pr = state.pr || { status: 'none' };
+
+  if (pr.status === 'merged') {
+    console.error('[EDGES] PR merged, pipeline complete');
+    return END;
+  }
+
+  console.error('[EDGES] Merge failed, ending pipeline');
+  return END;
+}
+
+module.exports = { defineEdges, qaRouter, reviewerRouter, validationRouter, fileWriterRouter, prRouter, mergeRouter };

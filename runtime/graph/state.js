@@ -18,6 +18,14 @@ function defaultLogs() {
   return { orchestrator: '', architect: '', backend: '', frontend: '', qa: '', reviewer: '' };
 }
 
+function defaultPR() {
+  return { url: null, status: 'none', fixAttempts: 0 };
+}
+
+function defaultReview() {
+  return { status: 'pending', verdict: null, issues: [] };
+}
+
 const stateChannels = {
   issue: {
     value: (left, right) => right !== undefined ? right : left,
@@ -42,6 +50,14 @@ const stateChannels = {
   execution: {
     value: (left, right) => right !== undefined ? right : left,
     default: defaultExecution
+  },
+  pr: {
+    value: (left, right) => right !== undefined ? right : left,
+    default: defaultPR
+  },
+  review: {
+    value: (left, right) => right !== undefined ? right : left,
+    default: defaultReview
   }
 };
 
@@ -74,4 +90,4 @@ function createInitialState(issue) {
   };
 }
 
-module.exports = { stateChannels, createInitialState, defaultIssue, defaultArchitecture, defaultValidation, defaultExecution, defaultLogs };
+module.exports = { stateChannels, createInitialState, defaultIssue, defaultArchitecture, defaultValidation, defaultExecution, defaultLogs, defaultPR, defaultReview };

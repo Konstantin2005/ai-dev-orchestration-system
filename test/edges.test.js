@@ -1,7 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { qaRouter, reviewerRouter, validationRouter } = require('../runtime/graph/edges');
+const { qaRouter, reviewerRouter, validationRouter, fileWriterRouter, prRouter, mergeRouter } = require('../runtime/graph/edges');
 
 describe('edges.js', () => {
   describe('qaRouter', () => {
@@ -83,56 +83,69 @@ describe('edges.js', () => {
   });
 
   describe('reviewerRouter', () => {
-    it('routes to validation when READY_FOR_PR', () => {
-      const state = { _output: { status: 'READY_FOR_PR' }, logs: {} };
-      assert.equal(reviewerRouter(state), 'validation');
+    it('routes to validate-output when READY_FOR_PR', () => {
+      const state = { _output: { status: 'READY_FOR_PR' }, logs: {}, pr: { fixAttempts: 0 } };
+      assert.equal(reviewerRouter(state), 'validate-output');
     });
 
-    it('routes to architect when CHANGES_REQUESTED', () => {
-      const state = { _output: { status: 'CHANGES_REQUESTED' }, logs: {} };
-      assert.equal(reviewerRouter(state), 'architect');
+    it('routes to backend when CHANGES_REQUESTED (fix loop)', () => {
+      const state = { _output: { status: 'CHANGES_REQUESTED' }, logs: {}, pr: { fixAttempts: 0 } };
+      assert.equal(reviewerRouter(state), 'backend');
     });
 
-    it('routes to validation when reviewer log contains READY_FOR_PR', () => {
+    it('routes to validate-output when reviewer log contains READY_FOR_PR', () => {
       const state = {
         _output: undefined,
-        logs: { reviewer: 'Everything looks good. READY_FOR_PR' }
+        logs: { reviewer: 'Everything looks good. READY_FOR_PR' },
+        pr: { fixAttempts: 0 }
       };
-      assert.equal(reviewerRouter(state), 'validation');
+      assert.equal(reviewerRouter(state), 'validate-output');
     });
 
-    it('routes to architect when reviewer log contains CHANGES_REQUESTED', () => {
+    it('routes to backend when reviewer log contains CHANGES_REQUESTED (fix loop)', () => {
       const state = {
         _output: undefined,
-        logs: { reviewer: 'Need more tests. CHANGES_REQUESTED' }
+        logs: { reviewer: 'Need more tests. CHANGES_REQUESTED' },
+        pr: { fixAttempts: 0 }
       };
-      assert.equal(reviewerRouter(state), 'architect');
+      assert.equal(reviewerRouter(state), 'backend');
     });
 
-    it('routes to architect when reviewer log mentions changes', () => {
+    it('routes to backend when reviewer log mentions changes (fix loop)', () => {
       const state = {
         _output: undefined,
-        logs: { reviewer: 'Please make some changes before approval' }
+        logs: { reviewer: 'Please make some changes before approval' },
+        pr: { fixAttempts: 0 }
       };
-      assert.equal(reviewerRouter(state), 'architect');
+      assert.equal(reviewerRouter(state), 'backend');
     });
 
-    it('defaults to validation when verdict unclear', () => {
+    it('defaults to validate-output when verdict unclear', () => {
       const state = {
         _output: undefined,
-        logs: { reviewer: 'Some review comments' }
+        logs: { reviewer: 'Some review comments' },
+        pr: { fixAttempts: 0 }
       };
-      assert.equal(reviewerRouter(state), 'validation');
+      assert.equal(reviewerRouter(state), 'validate-output');
     });
 
     it('handles missing logs gracefully', () => {
-      const state = { _output: undefined };
-      assert.equal(reviewerRouter(state), 'validation');
+      const state = { _output: undefined, pr: { fixAttempts: 0 } };
+      assert.equal(reviewerRouter(state), 'validate-output');
     });
 
     it('handles empty logs', () => {
-      const state = { _output: undefined, logs: {} };
-      assert.equal(reviewerRouter(state), 'validation');
+      const state = { _output: undefined, logs: {}, pr: { fixAttempts: 0 } };
+      assert.equal(reviewerRouter(state), 'validate-output');
+    });
+
+    it('routes to validate-output after max fix attempts', () => {
+      const state = {
+        _output: { status: 'CHANGES_REQUESTED' },
+        logs: {},
+        pr: { fixAttempts: 3 }
+      };
+      assert.equal(reviewerRouter(state), 'validate-output');
     });
   });
 

@@ -9,6 +9,8 @@ const { qaNode } = require('./nodes/qa');
 const { reviewerNode } = require('./nodes/reviewer');
 const { validationNode, validateOutput } = require('./nodes/validation');
 const { fileWriterNode, writeFiles } = require('./writers/file-writer');
+const { prCreateNode } = require('./nodes/pr-create');
+const { mergeNode } = require('./nodes/merge');
 const { defineEdges } = require('./edges');
 
 function buildGraph() {
@@ -24,6 +26,8 @@ function buildGraph() {
   graph.addNode('reviewer', reviewerNode);
   graph.addNode('validate-output', validationNode);
   graph.addNode('file-writer', fileWriterNode);
+  graph.addNode('pr-create', prCreateNode);
+  graph.addNode('merge', mergeNode);
 
   defineEdges(graph);
 
