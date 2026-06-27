@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+'use strict';
+
+const path = require('path');
+
+const cli = require(path.resolve(__dirname, '..', 'runtime', 'cli'));
+
+cli.main().catch(err => {
+  console.error(`[ai-orchestrator] ${err.message}`);
+  process.exit(1);
+});
