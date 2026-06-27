@@ -193,4 +193,50 @@ describe('validate-output.js', () => {
     const result = runValidator(input, prefix);
     assert.equal(result.status, 1);
   });
+
+  it('rejects content with eval() call', () => {
+    const input = {
+      architecture: { summary: 's', flow: 'f', decisions: [] },
+      files: [{ path: `${prefix}test.js`, content: 'eval("dangerous")' }],
+      logs: { architect: '', backend: '', frontend: '', qa: '', reviewer: '' },
+      status: 'READY_FOR_PR'
+    };
+    const result = runValidator(input, prefix);
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, 'INVALID');
+  });
+
+  it('rejects content with exec() call', () => {
+    const input = {
+      architecture: { summary: 's', flow: 'f', decisions: [] },
+      files: [{ path: `${prefix}test.js`, content: 'exec("rm -rf /")' }],
+      logs: { architect: '', backend: '', frontend: '', qa: '', reviewer: '' },
+      status: 'READY_FOR_PR'
+    };
+    const result = runValidator(input, prefix);
+    assert.equal(result.status, 1);
+  });
+
+  it('rejects content with require(fs) and process.env', () => {
+    const input = {
+      architecture: { summary: 's', flow: 'f', decisions: [] },
+      files: [{ path: `${prefix}test.js`, content: 'require("fs"); process.env.SECRET' }],
+      logs: { architect: '', backend: '', frontend: '', qa: '', reviewer: '' },
+      status: 'READY_FOR_PR'
+    };
+    const result = runValidator(input, prefix);
+    assert.equal(result.status, 1);
+  });
+
+  it('accepts safe content with allowed patterns', () => {
+    const input = {
+      architecture: { summary: 's', flow: 'f', decisions: [] },
+      files: [{ path: `${prefix}safe.js`, content: 'const x = 1; console.log(x);' }],
+      logs: { architect: '', backend: '', frontend: '', qa: '', reviewer: '' },
+      status: 'READY_FOR_PR'
+    };
+    const result = runValidator(input, prefix);
+    assert.equal(result.status, 0);
+    assert.equal(result.stdout, 'VALID');
+  });
 });

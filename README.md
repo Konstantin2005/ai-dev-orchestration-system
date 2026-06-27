@@ -22,6 +22,16 @@ Multi-agent AI engineering team simulation system. GitHub Issue → multi-agent 
 Issue → Orchestrator → Architect → Backend + Frontend → QA → Reviewer → PR → Merge
 ```
 
+## Single Execution Pipeline
+
+The system now uses a **single, deterministic execution path** (no fallback):
+
+```
+Issue → Bridge Adapter → LangGraph → Agents → Validation → File Writer → PR → DONE
+```
+
+All legacy fallback code has been removed per the Single Brain architecture constraint. Any execution error stops the pipeline explicitly — no silent failures, no alternative generation paths.
+
 ## Multi-Platform
 
 Use the AI engine as a **git submodule** in any repository. Each project pins a version, the engine auto-detects language and framework, and generated code lands directly in the project tree.

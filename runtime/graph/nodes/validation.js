@@ -5,6 +5,18 @@ const MAX_FILES = 50;
 const REQUIRED_TOP = ['architecture', 'files', 'logs', 'status'];
 const REQUIRED_ARCH = ['summary', 'flow', 'decisions'];
 const REQUIRED_LOGS = ['architect', 'backend', 'frontend', 'qa', 'reviewer'];
+const FORBIDDEN_CONTENT_PATTERNS = [
+  { pattern: /eval\s*\(/g, description: 'eval() call' },
+  { pattern: /require\s*\(['"`]fs['"`]\)/g, description: 'require(fs)' },
+  { pattern: /require\s*\(['"`]child_process['"`]\)/g, description: 'require(child_process)' },
+  { pattern: /process\.env/g, description: 'process.env access' },
+  { pattern: /exec(?:Sync)?\s*\(/g, description: 'exec() call' },
+  { pattern: /spawn(?:Sync)?\s*\(/g, description: 'spawn() call' },
+  { pattern: /import\s+{\s*.*\s*}\s+from\s+['"`]fs['"`]/g, description: 'import fs' },
+  { pattern: /import\s+{\s*.*\s*}\s+from\s+['"`]child_process['"`]/g, description: 'import child_process' },
+  { pattern: /rm\s+-rf\s+/g, description: 'rm -rf command' },
+  { pattern: />\s*\/dev\//g, description: 'write to /dev/' }
+];
 
 function validateOutput(state) {
   const errors = [];
@@ -40,6 +52,10 @@ function validateOutput(state) {
       if (!ALLOWED_EXTENSIONS.includes(ext)) errors.push(`File ${i}: bad extension "${ext}"`);
 
       if (f.content.length > MAX_CONTENT_LENGTH) errors.push(`File ${i}: content too long (${f.content.length})`);
+
+      for (const cp of FORBIDDEN_CONTENT_PATTERNS) {
+        if (cp.pattern.test(f.content)) errors.push(`File ${i}: forbidden pattern in content — ${cp.description}`);
+      }
     }
   }
 

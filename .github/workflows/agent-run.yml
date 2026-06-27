@@ -19,7 +19,6 @@ permissions:
 env:
   WORK_DIR: workspace/issues
   BRANCH_PREFIX: ai-issue
-  MAX_RETRY: 3
 
 jobs:
   pipeline:
@@ -88,6 +87,7 @@ jobs:
           echo "dir=$DIR" >> "$GITHUB_ENV"
 
       - name: LangGraph Execution
+        id: graph
         if: steps.idem.outputs.skip != 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -98,65 +98,57 @@ jobs:
           ENGINE_ROOT: ${{ steps.mode.outputs.engine_root }}
         run: |
           node -e "
-            const { execute } = require('./' + process.env.ENGINE_ROOT + '/runtime/graph/index.js');
+            const path = require('path');
+            const fs = require('fs');
+            process.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+            const { execute } = require(path.resolve(process.env.ENGINE_ROOT, 'runtime/graph/index.js'));
             execute({
               id: parseInt(process.env.ISSUE_ID),
               title: process.env.ISSUE_TITLE,
               body: process.env.ISSUE_BODY || ''
-            }).then(result => {
-              if (result.status === 'READY_FOR_PR') {
-                console.log('LangGraph execution completed successfully');
+            }).then(output => {
+              const tracePath = path.resolve(process.env.WORKSPACE_DIR || '.', 'execution-trace.json');
+              fs.mkdirSync(path.dirname(tracePath), { recursive: true });
+              fs.writeFileSync(tracePath, JSON.stringify({
+                runId: output.runId,
+                status: output.status,
+                failedStep: output.failedStep,
+                error: output.error,
+                trace: output.trace,
+                resultStatus: output.result ? output.result.status : null
+              }, null, 2), 'utf-8');
+              console.log('Trace written to', tracePath);
+              if (output.status === 'DONE') {
+                const resultPath = path.resolve(process.env.WORKSPACE_DIR || '.', 'ai-output.json');
+                fs.writeFileSync(resultPath, JSON.stringify(output.result, null, 2), 'utf-8');
+                console.log('Result written to', resultPath);
                 process.exit(0);
               } else {
-                console.error('LangGraph returned status:', result.status);
+                console.error('Pipeline failed at step:', output.failedStep);
+                console.error('Error:', output.error);
                 process.exit(1);
               }
             }).catch(err => {
-              console.error('LangGraph execution failed:', err.message);
+              console.error('Execution failed:', err.message);
               process.exit(1);
             });
-          " && echo "LANGGRAPH_OK=true" >> "$GITHUB_ENV" || echo "LANGGRAPH_OK=false" >> "$GITHUB_ENV"
+          "
 
-      - name: Legacy Fallback
-        if: steps.idem.outputs.skip != 'true' && env.LANGGRAPH_OK == 'false'
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          DIR="${WORK_DIR}/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}"
-          echo "Falling back to legacy pipeline..."
-          cat > /tmp/prompt.txt << 'EOF'
-          You are an AI Orchestrator. Output strict JSON:
-          {"architecture":{"summary":"","flow":"","decisions":[]},"files":[{"path":"","content":""}],"logs":{"architect":"","backend":"","frontend":"","qa":"","reviewer":""},"status":"READY_FOR_PR"}
-          JSON only.
-          EOF
-          SUCCESS=false
-          for i in $(seq 1 ${MAX_RETRY}); do
-            RESPONSE=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
-              -H "Authorization: Bearer $OPENAI_API_KEY" -H "Content-Type: application/json" \
-              -d "$(jq -n --arg m gpt-4o-mini --arg s "$(cat /tmp/prompt.txt)" --arg u "Issue #${{ steps.parse.outputs.id }}" '{model:$m,messages:[{role:"system",content:$s},{role:"user",content:$u}],temperature:0.3}')")
-            echo "$RESPONSE" | jq -e '.choices[0].message.content' > /dev/null 2>&1 || { sleep $((i * 5)); continue; }
-            echo "$RESPONSE" | jq -r '.choices[0].message.content' > "$DIR/ai-output.json" && SUCCESS=true && break
-            sleep $((i * 5))
-          done
-          if [ "$SUCCESS" != "true" ]; then
-            echo "All retries failed."
-            exit 1
-          fi
-
-      - name: Validate output
+      - name: Validate output via zero-trust gate
         if: steps.idem.outputs.skip != 'true'
         run: |
           DIR="${WORK_DIR}/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}"
           ENGINE_ROOT="${{ steps.mode.outputs.engine_root }}"
-          if [ "$LANGGRAPH_OK" == "true" ]; then
-            ls "$DIR"/**/*.md "$DIR"/**/*.json "$DIR"/**/*.js 2>/dev/null || echo "No files found from LangGraph"
-          else
-            [ ! -f "$DIR/ai-output.json" ] && exit 1
+          if [ -f "$DIR/ai-output.json" ]; then
             node "$ENGINE_ROOT/runtime/validate-output.js" "${DIR}/" < "$DIR/ai-output.json" || exit 1
+            echo "VALIDATION_PASSED=true" >> "$GITHUB_ENV"
+          else
+            echo "No ai-output.json found — pipeline may have failed"
+            exit 1
           fi
 
       - name: Run path-resolver
-        if: steps.idem.outputs.skip != 'true' && steps.mode.outputs.is_submodule == 'true'
+        if: steps.idem.outputs.skip != 'true' && steps.mode.outputs.is_submodule == 'true' && env.VALIDATION_PASSED == 'true'
         env:
           ENGINE_ROOT: ${{ steps.mode.outputs.engine_root }}
           WORKSPACE_DIR: ${{ env.dir }}
@@ -201,7 +193,7 @@ jobs:
           "
 
       - name: Commit and PR
-        if: steps.idem.outputs.skip != 'true'
+        if: steps.idem.outputs.skip != 'true' && env.VALIDATION_PASSED == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -219,13 +211,54 @@ jobs:
             exit 1
           fi
 
-      - name: Post comment
+      - name: Post success comment
+        if: success() && steps.idem.outputs.skip != 'true'
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+            const tracePath = process.env.WORKSPACE_DIR + '/execution-trace.json';
+            let traceInfo = '';
+            try {
+              const trace = JSON.parse(fs.readFileSync(tracePath, 'utf-8'));
+              traceInfo = '\n**Run ID:** ' + trace.runId +
+                '\n**Status:** ' + trace.status +
+                '\n**Result:** ' + (trace.resultStatus || 'N/A');
+            } catch (e) {
+              traceInfo = '\n**Trace:** unavailable';
+            }
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '## \u2705 Pipeline executed\nSee `workspace/issues/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}/`\n\n**Engine:** ${{ env.LANGGRAPH_OK == 'true' && 'LangGraph' || 'Legacy' }}\n**Mode:** ${{ steps.mode.outputs.is_submodule == 'true' && 'Submodule' || 'Standalone' }}'
+              body: '## \u2705 Pipeline executed successfully\n' +
+                'See `workspace/issues/${{ steps.parse.outputs.id }}-${{ steps.parse.outputs.slug }}/`\n' +
+                traceInfo +
+                '\n**Engine:** LangGraph' +
+                '\n**Mode:** ${{ steps.mode.outputs.is_submodule == 'true' && 'Submodule' || 'Standalone' }}'
+            });
+
+      - name: Post failure comment
+        if: failure() && steps.idem.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const tracePath = process.env.WORKSPACE_DIR + '/execution-trace.json';
+            let traceInfo = '';
+            try {
+              const trace = JSON.parse(fs.readFileSync(tracePath, 'utf-8'));
+              traceInfo = '\n**Run ID:** ' + trace.runId +
+                '\n**Failed Step:** ' + (trace.failedStep || 'unknown') +
+                '\n**Error:** ' + (trace.error || 'unknown');
+            } catch (e) {
+              traceInfo = '\n**Trace:** unavailable';
+            }
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## \u274c Pipeline failed\n' +
+                traceInfo +
+                '\n\nSee workflow logs for details.'
             });

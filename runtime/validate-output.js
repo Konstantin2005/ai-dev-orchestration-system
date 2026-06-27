@@ -8,6 +8,18 @@ const MAX_CONTENT_LENGTH = 50000;
 const MAX_FILES = 50;
 const ALLOWED_EXTENSIONS = ['.md', '.json', '.log', '.txt', '.yml', '.yaml', '.js', '.ts', '.py', '.sh'];
 const FORBIDDEN_PATTERNS = ['../', '..\\', '~', '$HOME', '/etc/', '/proc/', '/dev/'];
+const FORBIDDEN_CONTENT_PATTERNS = [
+  { pattern: /eval\s*\(/g, description: 'eval() call' },
+  { pattern: /require\s*\(['"`]fs['"`]\)/g, description: 'require(fs)' },
+  { pattern: /require\s*\(['"`]child_process['"`]\)/g, description: 'require(child_process)' },
+  { pattern: /process\.env/g, description: 'process.env access' },
+  { pattern: /exec(?:Sync)?\s*\(/g, description: 'exec() call' },
+  { pattern: /spawn(?:Sync)?\s*\(/g, description: 'spawn() call' },
+  { pattern: /import\s+{\s*.*\s*}\s+from\s+['"`]fs['"`]/g, description: 'import fs' },
+  { pattern: /import\s+{\s*.*\s*}\s+from\s+['"`]child_process['"`]/g, description: 'import child_process' },
+  { pattern: /rm\s+-rf\s+/g, description: 'rm -rf command' },
+  { pattern: />\s*\/dev\//g, description: 'write to /dev/' }
+];
 
 const REQUIRED_TOP = ['architecture', 'files', 'logs', 'status'];
 const REQUIRED_ARCH = ['summary', 'flow', 'decisions'];
@@ -49,6 +61,8 @@ process.stdin.on('end', () => {
         error('FILE-' + i, 'Bad extension: ' + ext);
       if (f.content.length > MAX_CONTENT_LENGTH)
         error('FILE-' + i, 'Content too long: ' + f.content.length);
+      for (const cp of FORBIDDEN_CONTENT_PATTERNS)
+        if (cp.pattern.test(f.content)) error('CONTENT-' + i, 'Forbidden pattern in content: ' + cp.description);
     }
   }
 

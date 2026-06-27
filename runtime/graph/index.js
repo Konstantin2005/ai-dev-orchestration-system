@@ -9,7 +9,6 @@ const { qaNode } = require('./nodes/qa');
 const { reviewerNode } = require('./nodes/reviewer');
 const { validationNode, validateOutput } = require('./nodes/validation');
 const { fileWriterNode, writeFiles } = require('./writers/file-writer');
-const { legacyFallbackNode } = require('./nodes/legacy-fallback');
 const { defineEdges } = require('./edges');
 
 function buildGraph() {
@@ -34,14 +33,19 @@ function buildGraph() {
   return app;
 }
 
-async function executeGraph(issue) {
+function generateRunId() {
+  return `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+async function executeGraph(issue, runId) {
   const initialState = createInitialState(issue);
 
   const app = buildGraph();
 
   try {
     const finalState = await app.invoke(initialState);
-    return formatOutput(finalState);
+    const output = formatOutput(finalState);
+    return { output, trace: finalState.execution?.trace || [] };
   } catch (err) {
     console.error(`[GRAPH] LangGraph execution error: ${err.message}`);
     throw err;
@@ -55,7 +59,6 @@ function formatOutput(state) {
 
   const reviewLog = state.logs.reviewer || '';
   const hasReadyForPr = reviewLog.includes('READY_FOR_PR');
-  const hasChangesRequested = reviewLog.includes('CHANGES_REQUESTED');
 
   let status = 'CHANGES_REQUESTED';
   if (state.execution?.status === 'completed' && hasReadyForPr) {
@@ -83,56 +86,93 @@ function formatOutput(state) {
   };
 }
 
-async function executeWithFallback(issue, options = {}) {
+async function execute(issue, options = {}) {
+  const runId = generateRunId();
   const projectRoot = options.projectRoot || process.cwd();
+  const trace = [];
+
+  console.error(`[INDEX] Run ${runId} started for issue #${issue.id}`);
+
+  const traceEntry = (step, status, startedAt, finishedAt, error) => ({
+    step, status, startedAt, finishedAt, error: error || null
+  });
 
   try {
-    console.error('[INDEX] Starting LangGraph execution...');
-    const result = await executeGraph(issue);
-    console.error('[INDEX] LangGraph execution completed successfully');
+    const stepStarted = new Date().toISOString();
 
-    const validationResult = validateOutput(result);
+    console.error(`[INDEX] Starting LangGraph execution...`);
+    const { output, trace: graphTrace } = await executeGraph(issue, runId);
+
+    const stepFinished = new Date().toISOString();
+    trace.push(traceEntry('graph', 'passed', stepStarted, stepFinished));
+
+    console.error(`[INDEX] LangGraph execution completed with status: ${output.status}`);
+
+    const validationStarted = new Date().toISOString();
+    const validationResult = validateOutput(output);
+    const validationFinished = new Date().toISOString();
+
     if (!validationResult.valid) {
-      console.error(`[INDEX] Validation failed after graph: ${validationResult.errors.join('; ')}`);
-      return { ...result, _validationErrors: validationResult.errors };
+      trace.push(traceEntry('validation', 'failed', validationStarted, validationFinished,
+        validationResult.errors.join('; ')));
+      return {
+        result: output,
+        status: 'FAILED',
+        failedStep: 'validation',
+        error: validationResult.errors.join('; '),
+        trace,
+        runId
+      };
     }
 
-    const writeResult = await writeFiles({ files: result.files }, projectRoot);
-    console.error(`[INDEX] Written ${writeResult.written.length} files, ${writeResult.errors.length} errors`);
+    trace.push(traceEntry('validation', 'passed', validationStarted, validationFinished));
 
-    return result;
-  } catch (langGraphErr) {
-    console.error('[INDEX] LangGraph execution failed, falling back to legacy pipeline');
-    console.error(`[INDEX] Error: ${langGraphErr.message}`);
+    const writeStarted = new Date().toISOString();
+    const writeResult = await writeFiles({ files: output.files }, projectRoot);
+    const writeFinished = new Date().toISOString();
 
-    try {
-      const initialState = createInitialState(issue);
-      const fallbackResult = await legacyFallbackNode(initialState);
-      const output = formatOutput(fallbackResult);
-      console.error('[INDEX] Legacy fallback completed');
-
-      const validationResult = validateOutput(output);
-      if (!validationResult.valid) {
-        console.error(`[INDEX] Validation failed after fallback: ${validationResult.errors.join('; ')}`);
-      }
-
-      const writeResult = await writeFiles({ files: output.files }, projectRoot);
-      console.error(`[INDEX] Fallback written ${writeResult.written.length} files`);
-
-      return output;
-    } catch (legacyErr) {
-      console.error(`[INDEX] Legacy fallback also failed: ${legacyErr.message}`);
-      throw new Error(`Both LangGraph and legacy pipeline failed: ${langGraphErr.message} | ${legacyErr.message}`);
+    if (writeResult.errors.length > 0 && writeResult.written.length === 0) {
+      trace.push(traceEntry('file-writer', 'failed', writeStarted, writeFinished,
+        writeResult.errors.map(e => e.error).join('; ')));
+      return {
+        result: output,
+        status: 'FAILED',
+        failedStep: 'file-writer',
+        error: writeResult.errors.map(e => e.error).join('; '),
+        trace,
+        runId
+      };
     }
+
+    trace.push(traceEntry('file-writer', 'passed', writeStarted, writeFinished,
+      writeResult.errors.length > 0 ? `${writeResult.errors.length} file(s) had errors` : null));
+
+    console.error(`[INDEX] Run ${runId} completed successfully`);
+
+    return {
+      result: output,
+      status: 'DONE',
+      failedStep: null,
+      error: null,
+      trace,
+      runId,
+      written: writeResult.written,
+      writeErrors: writeResult.errors
+    };
+
+  } catch (err) {
+    console.error(`[INDEX] Run ${runId} failed: ${err.message}`);
+    trace.push(traceEntry('graph', 'failed', null, new Date().toISOString(), err.message));
+
+    return {
+      result: null,
+      status: 'FAILED',
+      failedStep: 'graph',
+      error: err.message,
+      trace,
+      runId
+    };
   }
-}
-
-async function execute(issue, options) {
-  return executeWithFallback(issue, options);
-}
-
-async function execute(issue) {
-  return executeWithFallback(issue);
 }
 
 module.exports = { buildGraph, execute, executeGraph, formatOutput };
