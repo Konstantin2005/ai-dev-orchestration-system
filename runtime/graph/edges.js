@@ -135,28 +135,56 @@ function fileWriterRouter(state) {
   return pr.status === 'merged' ? END : 'pr-create';
 }
 
+const MAX_FIX_ATTEMPTS = 5;
+
 function prRouter(state) {
   const pr = state.pr || { status: 'none' };
+  const prState = state._prState || 'open';
+  const reviewGate = state._reviewGate || {};
+  const fixAttempts = pr.fixAttempts || 0;
 
-  if (pr.status === 'open') {
-    console.error('[EDGES] PR open, routing to merge');
+  console.error(`[EDGES] PR router: state=${prState}, fixAttempts=${fixAttempts}, review=${reviewGate.status || 'none'}`);
+
+  if (fixAttempts >= MAX_FIX_ATTEMPTS) {
+    console.error(`[EDGES] Max fix attempts (${MAX_FIX_ATTEMPTS}) reached, ending pipeline`);
     return 'merge';
   }
 
-  console.error('[EDGES] PR failed or unknown, ending pipeline');
+  if (reviewGate.status === 'FAILED' || reviewGate.nextAction === 'trigger_fix_loop') {
+    console.error(`[EDGES] Review FAILED — routing to fix loop (attempt ${fixAttempts + 1}/${MAX_FIX_ATTEMPTS})`);
+    return 'file-writer';
+  }
+
+  if (reviewGate.status === 'FIX_REQUIRED' || reviewGate.nextAction === 'request_changes') {
+    console.error(`[EDGES] Fix required — routing to fix loop (attempt ${fixAttempts + 1}/${MAX_FIX_ATTEMPTS})`);
+    return 'file-writer';
+  }
+
+  if (prState === 'passed' || prState === 'merge-ready' || reviewGate.status === 'PASSED') {
+    console.error('[EDGES] Review PASSED — routing to merge');
+    return 'merge';
+  }
+
+  console.error('[EDGES] PR status unknown, ending pipeline');
   return END;
 }
 
 function mergeRouter(state) {
-  const pr = state.pr || { status: 'none' };
+  const prState = state._prState || 'open';
+  const reviewGate = state._reviewGate || {};
 
-  if (pr.status === 'merged') {
-    console.error('[EDGES] PR merged, pipeline complete');
+  if (reviewGate.status !== 'PASSED') {
+    console.error(`[EDGES] Merge BLOCKED by reviewer gate (status: ${reviewGate.status})`);
     return END;
   }
 
-  console.error('[EDGES] Merge failed, ending pipeline');
+  if (prState === 'passed' || prState === 'merge-ready') {
+    console.error('[EDGES] PR passed review — merge approved');
+    return END;
+  }
+
+  console.error('[EDGES] Merge blocked: PR not in mergeable state');
   return END;
 }
 
-module.exports = { defineEdges, qaRouter, executionLoopRouter, reviewerRouter, validationRouter, fileWriterRouter, prRouter, mergeRouter };
+module.exports = { defineEdges, qaRouter, executionLoopRouter, reviewerRouter, validationRouter, fileWriterRouter, prRouter, mergeRouter, MAX_FIX_ATTEMPTS };
