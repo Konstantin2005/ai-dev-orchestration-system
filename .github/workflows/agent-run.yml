@@ -34,7 +34,7 @@ jobs:
   pipeline:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           path: engine
@@ -59,7 +59,7 @@ jobs:
 
       - name: Checkout target repository
         if: steps.mode.outputs.is_two_repo == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ steps.mode.outputs.target_owner }}/${{ steps.mode.outputs.target_repo }}
           token: ${{ secrets.TARGET_REPO_TOKEN || github.token }}
