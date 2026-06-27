@@ -161,23 +161,34 @@ async function runFullPipeline(issue, adapter) {
     updatedAt: now
   }, null, 2), 'utf-8');
 
-  await adapter.updateLabels(issue.number, { add: ['task:done'], remove: ['task:assigned'] });
+  await adapter.updateLabels(issue.number, { add: ['task:reviewing'], remove: ['task:assigned'] });
 
-  const summary = `## 🎉 Pipeline Complete for #${issue.number}
+  // PR creation with execution data enforcement
+  const executionLog = `Issue #${issue.number} pipeline executed at ${now}`;
+  const prBody = [
+    `## AI Pipeline Execution Report`,
+    ``,
+    `**Issue:** #${issue.number} — ${issue.title}`,
+    ``,
+    `---`,
+    ``,
+    `### Execution Log`,
+    `\`\`\``,
+    executionLog,
+    `\`\`\``,
+    ``,
+    `### Affected Files`,
+    ...Object.keys(subIssues).map(k => `- Sub-issue #${subIssues[k].number} (${k})`),
+    ``,
+    `> PR without execution data is INVALID.`,
+  ].join('\n');
 
-### Results
-- ${Object.entries(subIssues).length} sub-issues created
-- Architecture plan written
-- Agents assigned
+  await adapter.writeComment(issue.number, `## 📋 Execution Complete\n\nPR body with execution data generated. Waiting for review gate.\n\n${prBody}`);
 
-### Next Steps
-Each sub-issue will be processed by its assigned agent.`;
-  await adapter.writeComment(issue.number, summary);
+  writeLog(dir, 'orchestrator', `Issue #${issue.number} pipeline complete — awaiting reviewer gate`);
+  console.log(`[ORCHESTRATOR] ✅ Issue #${issue.number} pipeline done (review pending)`);
 
-  writeLog(dir, 'orchestrator', `Issue #${issue.number} pipeline complete`);
-  console.log(`[ORCHESTRATOR] ✅ Issue #${issue.number} pipeline done`);
-
-  return { issue: issue.number, subIssues: Object.keys(subIssues), dir };
+  return { issue: issue.number, subIssues: Object.keys(subIssues), dir, executionLog };
 }
 
 async function processIssue(issueNumber, owner, repo, token) {
