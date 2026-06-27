@@ -59,7 +59,7 @@ describe('orchestration/agent-runtime.js', () => {
       assert.equal(rt.state.agentType, 'backend');
       assert.equal(rt.state.repository, 'target-repo');
       assert.equal(rt.state.branch, 'feat/auth');
-      assert.equal(rt.state.objectivee, 'Implement auth');
+      assert.equal(rt.state.objective, 'Implement auth');
       assert.equal(rt.state.status, 'running');
     });
   });

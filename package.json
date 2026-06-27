@@ -1,10 +1,13 @@
 {
   "name": "ai-dev-orchestration-system",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": true,
   "type": "commonjs",
   "engines": {
     "node": ">=18.0.0"
+  },
+  "bin": {
+    "ai-orchestrator": "./bin/ai-orchestrator"
   },
   "dependencies": {
     "@langchain/langgraph": "^0.2.0",
@@ -13,7 +16,10 @@
     "express": "^4.21.0"
   },
   "scripts": {
+    "start": "node bin/ai-orchestrator",
     "test": "node --test",
-    "graph:run": "node runtime/graph/index.js"
+    "graph:run": "node runtime/graph/index.js",
+    "lint": "node --check runtime/cli/index.js runtime/adapter/interface.js runtime/adapter/github.js runtime/adapter/localfs.js runtime/adapter/index.js runtime/config/loader.js runtime/orchestration/autonomous-runner.js runtime/orchestration/sub-issue-processor.js",
+    "dev": "node --watch bin/ai-orchestrator"
   }
 }

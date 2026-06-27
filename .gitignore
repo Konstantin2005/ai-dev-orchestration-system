@@ -15,3 +15,9 @@ workspace/
 
 # Project-specific
 .ai-project-context.json
+
+# Orchestrator work directories
+.work/
+
+# Research notes
+research/
