@@ -1,0 +1,29 @@
+Feature:
+<КРАТКОЕ ОПИСАНИЕ ФУНКЦИИ>
+
+Context:
+<ГДЕ ЭТО ИСПОЛЬЗУЕТСЯ / ЗАЧЕМ НУЖНО>
+
+Scope:
+- Backend: <что должно быть сделано>
+- Frontend: <что должно быть сделано>
+- QA: <что обязательно проверить>
+
+Constraints:
+- no external services
+- in-memory or mock only
+- keep architecture simple but scalable
+
+Expected Behavior:
+<КАК СИСТЕМА ДОЛЖНА РАБОТАТЬ В ИТОГЕ>
+
+Edge Cases:
+- <пример 1>
+- <пример 2>
+- <пример 3>
+
+Non-goals:
+- <что НЕ делаем в этом Issue>
+
+Priority:
+medium | high | low

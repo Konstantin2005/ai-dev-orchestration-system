@@ -1,10 +1,10 @@
-const { TemplateEngine  } = require("../src/templates/engine");
-const { TemplateLoader  } = require("../src/templates/loader");
-const { TemplateRegistry  } = require("../src/templates/registry");
-const { Orchestrator  } = require("../src/core/orchestrator");
-const fs = require("fs/promises");
-const path = require("path");
-const { fileURLToPath  } = require("url");
+import { TemplateEngine } from '../src/templates/engine.js';
+import { TemplateLoader } from '../src/templates/loader.js';
+import { TemplateRegistry } from '../src/templates/registry.js';
+import { Orchestrator } from '../src/core/orchestrator.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMP_DIR = path.join(__dirname, '..', 'temp-test');

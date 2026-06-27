@@ -1,0 +1,46 @@
+{
+  "version": "0.1.0",
+  "repositories": {
+    "Main": {
+      "type": "obsidian",
+      "path": "C:/obsidian/Main",
+      "remote": "https://github.com/Konstantin2005/ObsiduanMain.git",
+      "active_issues": ["115"],
+      "state": "active"
+    },
+    "agent-core": {
+      "type": "github",
+      "path": "C:/obsidian/Main/agent-core",
+      "remote": "https://github.com/Konstantin2005/agent-core.git",
+      "active_issues": [],
+      "state": "active"
+    },
+    "ai-dev-orchestration-system": {
+      "type": "reference",
+      "path": "C:/obsidian/Main/ai-dev-orchestration-system",
+      "state": "read-only"
+    },
+    "error-telemetry": {
+      "type": "data",
+      "path": "C:/obsidian/Main/error-telemetry",
+      "state": "passive"
+    },
+    "error-task-queue": {
+      "type": "data",
+      "path": "C:/obsidian/Main/error-task-queue",
+      "state": "passive"
+    },
+    "agent-os": {
+      "type": "monorepo",
+      "path": "C:/obsidian/Main/agent-os",
+      "state": "active"
+    }
+  },
+  "active_agents": [],
+  "execution_history": [],
+  "metrics": {
+    "total_issues_processed": 0,
+    "total_prs_created": 0,
+    "uptime": "0h"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "architecture": {
+    "summary": "Mock auth system with register, login, and profile endpoints. In-memory storage, fake JWT tokens.",
+    "flow": "Register → Login → Token → GET /me → Logout",
+    "decisions": [
+      "In-memory Map instead of database for mock simplicity",
+      "Fake JWT (base64) instead of real JWT — mock only",
+      "localStorage for token persistence between tabs"
+    ]
+  },
+  "files": [
+    {
+      "path": ".work/issues/108-test-task/00-architect/plan.md",
+      "content": "# Plan: Mock Auth System\n\n## Этапы\n- [x] Architect: архитектура готова\n- [x] Backend: API реализован\n- [x] Frontend: UI готов\n- [x] QA: тесты составлены\n- [x] Code Review: пройден\n\n## Архитектура\nIn-memory auth, 3 endpoints, fake JWT"
+    },
+    {
+      "path": ".work/issues/108-test-task/01-backend-engineer/api.md",
+      "content": "# API\n\n## POST /register\n- Body: { username, password }\n- Success: 201 { message: \"User created\" }\n- Error: 409 { error: \"User exists\" }\n\n## POST /login\n- Body: { username, password }\n- Success: 200 { token: \"fake-jwt-<user>-<ts>\" }\n- Error: 401 { error: \"Invalid credentials\" }"
+    },
+    {
+      "path": ".work/issues/108-test-task/02-frontend-engineer/ui.md",
+      "content": "# UI Components\n\n## LoginForm.vue\n- Fields: username, password\n- API: POST /login\n- On success: save token, redirect to Dashboard\n\n## RegisterForm.vue\n- Fields: username, password, confirm\n- API: POST /register\n- On success: show message, redirect to Login"
+    },
+    {
+      "path": ".work/issues/108-test-task/03-qa-engineer/tests.md",
+      "content": "# Test Cases\n\n- TC-01: Register new user → 201\n- TC-02: Register duplicate → 409\n- TC-03: Login valid → 200 + token\n- TC-04: Login invalid password → 401\n- TC-05: GET /me with token → 200\n- TC-06: GET /me without token → 401"
+    },
+    {
+      "path": ".work/issues/108-test-task/04-code-reviewer/review.md",
+      "content": "# Review\n\n## Backend\n- ✅ In-memory storage for mock\n- ⚠️ Plain text password (ok for mock)\n\n## Frontend\n- ✅ Clean component separation\n- ⚠️ No XSS escaping (low risk for mock)\n\n## Вердикт\n✅ APPROVED"
+    }
+  ],
+  "logs": {
+    "architect": "Выбрал in-memory Map для простоты mock. Fake JWT вместо real — не нужно подписывать. Три endpoints: register, login, me.",
+    "backend": "Реализовал три endpoints на Express. Валидация полей. In-memory storage. Генерация fake-jwt токена.",
+    "frontend": "Создал Vue 3 компоненты: App, LoginForm, RegisterForm, Dashboard. localStorage для токена. Базовая валидация форм.",
+    "qa": "Составил 6 тест-кейсов. Проверил register, login, me. Edge cases: пустые поля, неверные credentials.",
+    "reviewer": "Backend: in-memory ok, plain text password ⚠️. Frontend: компоненты чистые, XSS риск ⚠️. Вердикт: APPROVED для mock."
+  },
+  "status": "READY_FOR_PR"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "agent-core",
+  "version": "0.1.0",
+  "description": "Custom JavaScript Agent Core System — multi-agent pipeline engine",
+  "main": "src/core/orchestrator.js",
+  "scripts": {
+    "start": "node src/core/orchestrator.js",
+    "test": "node tests/run.js",
+    "lint": "eslint src/"
+  },
+  "type": "module",
+  "keywords": ["ai", "agents", "orchestrator", "pipeline"],
+  "license": "MIT"
+}
