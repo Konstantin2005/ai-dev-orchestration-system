@@ -4,6 +4,11 @@
       "url": "https://github.com/Konstantin2005/ai-dev-orchestration-system.git",
       "adapter": "github",
       "addedAt": "2026-06-27T03:09:54.399Z"
+    },
+    {
+      "url": "https://github.com/Konstantin2005/ObsiduanMain",
+      "adapter": "C:\\obsidian\\Main",
+      "addedAt": "2026-06-27T04:23:27.277Z"
     }
   ],
   "defaultAdapter": "github",

@@ -11,6 +11,7 @@ const { validationNode, validateOutput } = require('./nodes/validation');
 const { fileWriterNode, writeFiles } = require('./writers/file-writer');
 const { prCreateNode } = require('./nodes/pr-create');
 const { mergeNode } = require('./nodes/merge');
+const { executionLoopNode } = require('./nodes/execution-loop');
 const { defineEdges } = require('./edges');
 
 function buildGraph() {
@@ -28,6 +29,7 @@ function buildGraph() {
   graph.addNode('file-writer', fileWriterNode);
   graph.addNode('pr-create', prCreateNode);
   graph.addNode('merge', mergeNode);
+  graph.addNode('execution-loop', executionLoopNode);
 
   defineEdges(graph);
 

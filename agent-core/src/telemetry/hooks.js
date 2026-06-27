@@ -1,7 +1,16 @@
-/**
- * Telemetry hooks for agent-core integration.
- * Attaches error capture to agents, pipeline, and template engine.
- */
+let _capturing = false;
+
+function safeCapture(logger, err, source, severity) {
+  if (_capturing) return;
+  _capturing = true;
+  try {
+    logger.capture(err, source, severity);
+  } catch {
+    // telemetry must never throw or re-trigger
+  } finally {
+    _capturing = false;
+  }
+}
 
 export function createAgentTelemetry(agent, errorLogger) {
   const originalExecute = agent.execute.bind(agent);
@@ -16,7 +25,7 @@ export function createAgentTelemetry(agent, errorLogger) {
         workspace: context?.workspace,
         issueId: context?.memory?.get?.('issue')?.id,
       };
-      errorLogger.capture(err, `agent.${agent.name}`, 'error');
+      safeCapture(errorLogger, err, `agent.${agent.name}`, 'error');
       throw err;
     }
   };
@@ -35,7 +44,7 @@ export function createPipelineTelemetry(pipeline, errorLogger) {
         stageName: stage?.name,
         workspace,
       };
-      errorLogger.capture(err, `pipeline.${stage?.name || 'unknown'}`, 'error');
+      safeCapture(errorLogger, err, `pipeline.${stage?.name || 'unknown'}`, 'error');
       throw err;
     }
   };
@@ -51,7 +60,7 @@ export function createTemplateTelemetry(engine, errorLogger) {
       return originalRender(template, variables);
     } catch (err) {
       err.context = { templatePreview: template?.slice(0, 100) };
-      errorLogger.capture(err, 'template.engine', 'warning');
+      safeCapture(errorLogger, err, 'template.engine', 'warning');
       throw err;
     }
   };

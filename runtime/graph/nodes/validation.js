@@ -2,6 +2,8 @@ const ALLOWED_EXTENSIONS = ['.md', '.json', '.log', '.txt', '.yml', '.yaml', '.j
 const FORBIDDEN_PATTERNS = ['../', '..\\', '~', '$HOME', '/etc/', '/proc/', '/dev/'];
 const MAX_CONTENT_LENGTH = 50000;
 const MAX_FILES = 50;
+const MIN_FILES = 1;
+const MIN_MD_FILE_SIZE = 50;
 const REQUIRED_TOP = ['architecture', 'files', 'logs', 'status'];
 const REQUIRED_ARCH = ['summary', 'flow', 'decisions'];
 const REQUIRED_LOGS = ['architect', 'backend', 'frontend', 'qa', 'reviewer'];
@@ -38,6 +40,7 @@ function validateOutput(state) {
     errors.push('files must be an array');
   } else {
     if (state.files.length === 0) errors.push('files must be non-empty array');
+    if (state.files.length < MIN_FILES) errors.push(`Too few files: ${state.files.length} (minimum ${MIN_FILES})`);
     if (state.files.length > MAX_FILES) errors.push(`Too many files: ${state.files.length}`);
 
     for (let i = 0; i < state.files.length; i++) {
@@ -52,6 +55,18 @@ function validateOutput(state) {
       if (!ALLOWED_EXTENSIONS.includes(ext)) errors.push(`File ${i}: bad extension "${ext}"`);
 
       if (f.content.length > MAX_CONTENT_LENGTH) errors.push(`File ${i}: content too long (${f.content.length})`);
+
+      if (f.path.endsWith('.md') && f.content.length < MIN_MD_FILE_SIZE) {
+        errors.push(`File ${i}: stub file (too short: ${f.content.length} bytes) — ${f.path}`);
+      }
+
+      if (f.path.endsWith('context.md') && !f.content.includes('state:')) {
+        errors.push(`File ${i}: missing state: field in ${f.path}`);
+      }
+
+      if (f.content.charCodeAt(0) === 0xFFFD) {
+        errors.push(`File ${i}: encoding corruption (replacement char) — ${f.path}`);
+      }
 
       for (const cp of FORBIDDEN_CONTENT_PATTERNS) {
         if (cp.pattern.test(f.content)) errors.push(`File ${i}: forbidden pattern in content — ${cp.description}`);

@@ -1,3 +1,5 @@
+state: IN_PROGRESS
+
 # Context: [Issue Title]
 
 ## Issue

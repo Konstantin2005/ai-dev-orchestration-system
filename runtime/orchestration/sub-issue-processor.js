@@ -2,10 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const { createAdapter } = require('../adapter');
-const { readConfig } = require('../config/loader');
+const { getRepositories } = require('../config/loader');
 
-const OWNER = process.env.GITHUB_OWNER || 'Konstantin2005';
-const REPO = process.env.GITHUB_REPO || 'ai-dev-orchestration-system';
 const WORK_DIR = path.resolve(__dirname, '..', '..', '.work', 'issues');
 
 const AGENT_ACTIONS = {
@@ -15,15 +13,12 @@ const AGENT_ACTIONS = {
     execute: async (issue, adapter, workDir) => {
       const parentMatch = issue.body.match(/Parent: #(\d+)/);
       const parentId = parentMatch ? parentMatch[1] : 'unknown';
-      const parentDir = findParentDir(parentId);
 
       log(workDir, 'backend', `Starting backend implementation for parent #${parentId}`);
-      await adapter.writeComment(issue.number,
-        `## ⚙️ Backend Agent Active\n\nImplementing backend logic for parent #${parentId}.`);
+      await adapter.writeComment(issue.number, `## ⚙️ Backend Agent Active\n\nImplementing backend logic for parent #${parentId}.`);
 
       fs.writeFileSync(path.join(workDir, '01-backend-engineer', 'implementation.md'),
-        `# Backend Implementation\n\n## Parent: #${parentId}\n## Sub-issue: #${issue.number}\n\n` +
-        `## Implementation Plan\n1. Analyze requirements\n2. Write API endpoints\n3. Add business logic\n4. Create tests\n`, 'utf-8');
+        `# Backend Implementation\n\n## Parent: #${parentId}\n## Sub-issue: #${issue.number}\n\n## Implementation Plan\n1. Analyze requirements\n2. Write API endpoints\n3. Add business logic\n4. Create tests\n`, 'utf-8');
 
       await adapter.updateLabels(issue.number, { add: ['task:done', 'status:backend-done'], remove: ['status:backend-pending', 'task:created'] });
       await adapter.writeComment(issue.number, `## ✅ Backend Done\n\nImplementation complete for parent #${parentId}.`);
@@ -38,12 +33,10 @@ const AGENT_ACTIONS = {
       const parentId = parentMatch ? parentMatch[1] : 'unknown';
 
       log(workDir, 'frontend', `Starting frontend implementation for parent #${parentId}`);
-      await adapter.writeComment(issue.number,
-        `## 🎨 Frontend Agent Active\n\nBuilding UI components for parent #${parentId}.`);
+      await adapter.writeComment(issue.number, `## 🎨 Frontend Agent Active\n\nBuilding UI components for parent #${parentId}.`);
 
       fs.writeFileSync(path.join(workDir, '02-frontend-engineer', 'implementation.md'),
-        `# Frontend Implementation\n\n## Parent: #${parentId}\n## Sub-issue: #${issue.number}\n\n` +
-        `## UI Plan\n1. Design components\n2. Implement states (loading, empty, error, success)\n3. Connect to API\n`, 'utf-8');
+        `# Frontend Implementation\n\n## Parent: #${parentId}\n## Sub-issue: #${issue.number}\n\n## UI Plan\n1. Design components\n2. Implement states (loading, empty, error, success)\n3. Connect to API\n`, 'utf-8');
 
       await adapter.updateLabels(issue.number, { add: ['task:done', 'status:frontend-done'], remove: ['status:frontend-pending', 'task:created'] });
       await adapter.writeComment(issue.number, `## ✅ Frontend Done\n\nUI implementation complete for parent #${parentId}.`);
@@ -58,13 +51,10 @@ const AGENT_ACTIONS = {
       const parentId = parentMatch ? parentMatch[1] : 'unknown';
 
       log(workDir, 'qa', `Starting QA validation for parent #${parentId}`);
-      await adapter.writeComment(issue.number,
-        `## 🧪 QA Agent Active\n\nValidating implementation for parent #${parentId}.`);
+      await adapter.writeComment(issue.number, `## 🧪 QA Agent Active\n\nValidating implementation for parent #${parentId}.`);
 
       fs.writeFileSync(path.join(workDir, '03-qa-engineer', 'test-report.md'),
-        `# QA Test Report\n\n## Parent: #${parentId}\n\n## Test Cases\n` +
-        `1. ✅ Unit tests pass\n2. ✅ Integration tests pass\n3. ⚠️ Edge cases covered\n` +
-        `## Verdict: PASS\n`, 'utf-8');
+        `# QA Test Report\n\n## Parent: #${parentId}\n\n## Test Cases\n1. ✅ Unit tests pass\n2. ✅ Integration tests pass\n3. ⚠️ Edge cases covered\n## Verdict: PASS\n`, 'utf-8');
 
       await adapter.updateLabels(issue.number, { add: ['task:done', 'status:qa-passed'], remove: ['status:qa-pending', 'task:created'] });
       await adapter.writeComment(issue.number, `## ✅ QA Passed\n\nValidation complete for parent #${parentId}.`);
@@ -79,13 +69,10 @@ const AGENT_ACTIONS = {
       const parentId = parentMatch ? parentMatch[1] : 'unknown';
 
       log(workDir, 'reviewer', `Starting code review for parent #${parentId}`);
-      await adapter.writeComment(issue.number,
-        `## 🔍 Reviewer Agent Active\n\nReviewing implementation for parent #${parentId}.`);
+      await adapter.writeComment(issue.number, `## 🔍 Reviewer Agent Active\n\nReviewing implementation for parent #${parentId}.`);
 
       fs.writeFileSync(path.join(workDir, '04-code-reviewer', 'review-report.md'),
-        `# Code Review Report\n\n## Parent: #${parentId}\n\n## Review Checklist\n` +
-        `- [x] Architecture follows plan\n- [x] Code quality acceptable\n- [x] Tests present\n- [x] No security issues\n` +
-        `## Verdict: APPROVED ✅\n`, 'utf-8');
+        `# Code Review Report\n\n## Parent: #${parentId}\n\n## Review Checklist\n- [x] Architecture follows plan\n- [x] Code quality acceptable\n- [x] Tests present\n- [x] No security issues\n\n## Verdict: APPROVED ✅\n`, 'utf-8');
 
       await adapter.updateLabels(issue.number, { add: ['task:done', 'status:ready-for-pr'], remove: ['status:reviewer-pending', 'task:created'] });
       await adapter.writeComment(issue.number, `## ✅ Review Approved\n\nCode review complete for parent #${parentId}. Ready for PR.`);
@@ -134,13 +121,27 @@ async function processSubIssue(issue, adapter) {
   return { issue: issue.number, role: agent.name, parent: parentId, status: 'done' };
 }
 
-async function main() {
-  console.log('\n🤖 SUB-ISSUE PROCESSOR — AGENT EXECUTION MODE\n');
+async function main(options = {}) {
+  const { owner, repo, token } = options;
 
-  const adapter = createAdapter('github', OWNER, REPO);
+  if (!owner || !repo) {
+    const repos = getRepositories();
+    if (repos.length === 0) {
+      console.log('[SUB-ISSUE] No repositories configured.');
+      return;
+    }
+    const entry = repos[0];
+    const match = entry.url.match(/github\.com\/([^/]+)\/([^/.]+)/);
+    if (!match) { console.error('[SUB-ISSUE] Cannot parse repo URL'); return; }
+    options.owner = match[1];
+    options.repo = match[2].replace(/\.git$/, '');
+  }
 
+  const adapter = createAdapter('github', options.owner, options.repo, { token: options.token });
   const allStatusLabels = Object.keys(AGENT_ACTIONS);
   let totalProcessed = 0;
+
+  console.log('\n🤖 SUB-ISSUE PROCESSOR — AGENT EXECUTION MODE\n');
 
   for (const label of allStatusLabels) {
     console.log(`\nScanning for issues with label "${label}"...`);
@@ -164,7 +165,14 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().catch(err => {
+  const args = process.argv.slice(2);
+  const opts = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--owner') opts.owner = args[++i];
+    else if (args[i] === '--repo') opts.repo = args[++i];
+    else if (args[i] === '--token') opts.token = args[++i];
+  }
+  main(opts).catch(err => {
     console.error(`[SUB-ISSUE] Fatal: ${err.message}`);
     process.exit(1);
   });

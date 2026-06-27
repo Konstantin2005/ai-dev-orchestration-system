@@ -9,10 +9,43 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
+const UTF8_BOM = '\uFEFF';
+
 function writeFile(filePath, content) {
   const dir = path.dirname(filePath);
   ensureDir(dir);
-  fs.writeFileSync(filePath, content, 'utf-8');
+  const isMarkdown = filePath.endsWith('.md');
+  const output = isMarkdown ? UTF8_BOM + content : content;
+  fs.writeFileSync(filePath, output, 'utf-8');
+}
+
+function readFileWithEncodingCheck(filePath) {
+  const raw = fs.readFileSync(filePath, 'utf-8');
+  if (raw.charCodeAt(0) === 0xFEFF) return raw.slice(1);
+  return raw;
+}
+
+function validateEncoding(filePath) {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const hasBom = raw.charCodeAt(0) === 0xFEFF;
+
+    if (filePath.endsWith('.md') && !hasBom) {
+      console.error(`[ENCODING] Missing BOM: ${filePath}`);
+      return false;
+    }
+
+    for (let i = 0; i < raw.length; i++) {
+      if (raw.charCodeAt(i) === 0xFFFD) {
+        console.error(`[ENCODING] Corrupted char at position ${i}: ${filePath}`);
+        return false;
+      }
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function writeFiles(state, projectRoot) {

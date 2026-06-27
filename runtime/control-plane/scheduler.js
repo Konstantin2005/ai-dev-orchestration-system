@@ -10,7 +10,7 @@ class Scheduler {
 
   enqueue(task) {
     if (this.queue.length >= this.maxSize) {
-      this.queue.pop();
+      this.queue.shift();
     }
 
     const id = `task-${++this.counter}`;

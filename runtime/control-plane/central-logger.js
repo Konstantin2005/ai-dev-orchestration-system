@@ -10,6 +10,8 @@ class CentralLogger {
     this.buffers = {};
     this._timer = null;
     this._started = false;
+    this._logDepth = 0;
+    this._maxDepth = 5;
   }
 
   start() {
@@ -25,9 +27,15 @@ class CentralLogger {
   }
 
   log(stream, entry) {
-    if (!this.buffers[stream]) this.buffers[stream] = [];
-    this.buffers[stream].push({ timestamp: new Date().toISOString(), ...entry });
-    if (this.buffers[stream].length >= MAX_BUFFER) this.flush(stream);
+    if (this._logDepth >= this._maxDepth) return;
+    this._logDepth++;
+    try {
+      if (!this.buffers[stream]) this.buffers[stream] = [];
+      this.buffers[stream].push({ timestamp: new Date().toISOString(), ...entry });
+      if (this.buffers[stream].length >= MAX_BUFFER) this.flush(stream);
+    } finally {
+      this._logDepth--;
+    }
   }
 
   flush(stream) {

@@ -1,0 +1,15 @@
+{
+  "name": "web",
+  "active": true,
+  "events": [
+    "issues",
+    "issue_comment",
+    "push"
+  ],
+  "config": {
+    "url": "https://YOUR-SERVER-HOST/webhook",
+    "content_type": "json",
+    "secret": "your-webhook-secret-here",
+    "insecure_ssl": "0"
+  }
+}

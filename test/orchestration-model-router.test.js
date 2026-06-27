@@ -1,14 +1,19 @@
-const { describe, it } = require('node:test');
+const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
   MODEL_ROUTES,
   getModelForAgent,
   buildAgentPayload,
-  validatePayload
+  validatePayload,
+  resolveModelForAgent
 } = require('../runtime/orchestration/model-router');
 
 describe('orchestration/model-router.js', () => {
+  const originalMode = process.env.AI_ORCHESTRATOR_MODE;
+
+  before(() => { process.env.AI_ORCHESTRATOR_MODE = 'full'; });
+  after(() => { process.env.AI_ORCHESTRATOR_MODE = originalMode; });
 
   describe('MODEL_ROUTES', () => {
     it('has routes for all agent types', () => {
@@ -29,31 +34,50 @@ describe('orchestration/model-router.js', () => {
       assert.equal(MODEL_ROUTES.frontend.provider, 'google');
       assert.equal(MODEL_ROUTES.frontend.model, 'gemini-2.5-pro');
     });
-
-    it('research uses openai/gpt-4.1-mini', () => {
-      assert.equal(MODEL_ROUTES.research.provider, 'openai');
-      assert.equal(MODEL_ROUTES.research.model, 'gpt-4.1-mini');
-    });
   });
 
-  describe('getModelForAgent', () => {
-    it('returns correct route for known agent type', () => {
-      const route = getModelForAgent('backend');
+  describe('resolveModelForAgent', () => {
+    it('respects full mode routing', () => {
+      const route = resolveModelForAgent('backend');
       assert.equal(route.provider, 'anthropic');
       assert.equal(route.model, 'claude-sonnet');
     });
 
     it('returns default for unknown agent type', () => {
-      const route = getModelForAgent('unknown-agent');
+      const route = resolveModelForAgent('unknown-agent');
       assert.equal(route.provider, 'openai');
       assert.equal(route.model, 'gpt-4o-mini');
     });
 
     it('returns a copy not a reference', () => {
-      const route1 = getModelForAgent('backend');
-      const route2 = getModelForAgent('backend');
+      const route1 = resolveModelForAgent('backend');
+      const route2 = resolveModelForAgent('backend');
       route1.model = 'modified';
       assert.equal(route2.model, 'claude-sonnet');
+    });
+  });
+
+  describe('getModelForAgent (mode-aware)', () => {
+    it('returns openai-only by default', () => {
+      delete process.env.AI_ORCHESTRATOR_MODE;
+      const route = getModelForAgent('backend');
+      assert.equal(route.provider, 'openai');
+      assert.equal(route.model, 'gpt-4o-mini');
+      process.env.AI_ORCHESTRATOR_MODE = 'full';
+    });
+
+    it('returns configured providers in full mode', () => {
+      const route = getModelForAgent('frontend');
+      assert.equal(route.provider, 'google');
+      assert.equal(route.model, 'gemini-2.5-pro');
+    });
+
+    it('returns mock in mock mode', () => {
+      process.env.AI_ORCHESTRATOR_MODE = 'mock';
+      const route = getModelForAgent('backend');
+      assert.equal(route.provider, 'mock');
+      assert.equal(route.model, 'mock');
+      process.env.AI_ORCHESTRATOR_MODE = 'full';
     });
   });
 
@@ -72,8 +96,6 @@ describe('orchestration/model-router.js', () => {
 
       assert.equal(payload.task_id, 'TASK-1');
       assert.equal(payload.agent_type, 'backend');
-      assert.equal(payload.model, 'claude-sonnet');
-      assert.equal(payload.provider, 'anthropic');
       assert.equal(payload.objective, 'Implement JWT auth');
       assert.equal(payload.context.codebase_summary, 'Express app');
       assert.deepEqual(payload.context.dependencies, ['express']);

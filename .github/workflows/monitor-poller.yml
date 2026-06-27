@@ -1,0 +1,107 @@
+name: Monitor Poller — Periodic Sync from ObsiduanMain
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # every 30 minutes
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TARGET_REPO: Konstantin2005/ObsiduanMain
+  MONITOR_DIR: .work/monitor
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch target repo data
+        id: fetch
+        run: |
+          mkdir -p ${{ env.MONITOR_DIR }}
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # — Open issues —
+          gh issue list --repo "${{ env.TARGET_REPO }}" --state open --json number,title,state,labels,createdAt,updatedAt,body \
+            --limit 100 > ${{ env.MONITOR_DIR }}/target-issues.json 2>/dev/null
+          OPEN_COUNT=$(python3 -c "import json; d=json.load(open('${{ env.MONITOR_DIR }}/target-issues.json')); print(len(d))" 2>/dev/null || echo "0")
+
+          # — Recent closed issues (last 24h) —
+          SINCE=$(date -u -d '24 hours ago' +"%Y-%m-%dT%H:%M:%SZ")
+          gh issue list --repo "${{ env.TARGET_REPO }}" --state closed --json number,title,closedAt,stateReason,labels \
+            --limit 50 --search "closed:>=$SINCE" > ${{ env.MONITOR_DIR }}/target-closed-issues.json 2>/dev/null
+          CLOSED_COUNT=$(python3 -c "import json; d=json.load(open('${{ env.MONITOR_DIR }}/target-closed-issues.json')); print(len(d))" 2>/dev/null || echo "0")
+
+          # — Check for errors in issue bodies —
+          python3 -c "
+import json
+issues = json.load(open('${{ env.MONITOR_DIR }}/target-issues.json'))
+patterns = ['error', 'fail', 'crash', 'exception', 'fatal', 'blocked']
+errors = []
+for i in issues:
+    body = (i.get('body') or '').lower()
+    title = (i.get('title') or '').lower()
+    for p in patterns:
+        if p in body or p in title:
+            errors.append({'number': i['number'], 'title': i['title'], 'match': p})
+            break
+with open('${{ env.MONITOR_DIR }}/target-errors.json', 'w') as f:
+    json.dump(errors, f, indent=2)
+print(f'Errors found: {len(errors)}')
+" 2>/dev/null || echo "0" > /tmp/err_count
+
+          ERROR_COUNT=$(python3 -c "import json; d=json.load(open('${{ env.MONITOR_DIR }}/target-errors.json')); print(len(d))" 2>/dev/null || echo "0")
+
+          echo "open=$OPEN_COUNT" >> "$GITHUB_OUTPUT"
+          echo "closed=$CLOSED_COUNT" >> "$GITHUB_OUTPUT"
+          echo "errors=$ERROR_COUNT" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$TIMESTAMP" >> "$GITHUB_OUTPUT"
+
+      - name: Update dashboard
+        run: |
+          cat > ${{ env.MONITOR_DIR }}/dashboard.md << 'DASH'
+# Monitor Dashboard
+
+**Source:** ${{ env.TARGET_REPO }}
+**Last poll:** ${{ steps.fetch.outputs.timestamp }}
+
+## Status
+
+| Metric | Value |
+|--------|-------|
+| Open issues | ${{ steps.fetch.outputs.open }} |
+| Closed (24h) | ${{ steps.fetch.outputs.closed }} |
+| Potential errors | ${{ steps.fetch.outputs.errors }} |
+
+## Error Issues
+
+DASH
+          if [ -f "${{ env.MONITOR_DIR }}/target-errors.json" ]; then
+            python3 -c "
+import json
+errors = json.load(open('${{ env.MONITOR_DIR }}/target-errors.json'))
+if not errors:
+    print('_None detected_')
+else:
+    for e in errors:
+        print(f'- [#{e[\"number\"]}](https://github.com/${{ env.TARGET_REPO }}/issues/{e[\"number\"]}) — {e[\"title\"]} (match: `{e[\"match\"]}`)')
+" >> ${{ env.MONITOR_DIR }}/dashboard.md
+          fi
+
+          # Save poll record
+          echo '{"timestamp":"${{ steps.fetch.outputs.timestamp }}","open":${{ steps.fetch.outputs.open }},"closed":${{ steps.fetch.outputs.closed }},"errors":${{ steps.fetch.outputs.errors }}}' \
+            > ${{ env.MONITOR_DIR }}/last-poll.json
+
+          cat ${{ env.MONITOR_DIR }}/dashboard.md
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ env.MONITOR_DIR }}/
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "sync: periodic poll from ${{ env.TARGET_REPO }} [$(date -u +'%Y-%m-%d %H:%M')]"
+          git push

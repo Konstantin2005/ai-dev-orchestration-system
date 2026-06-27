@@ -11,11 +11,13 @@ class StateManager {
     this.pending = new Map();
     this._timer = null;
     this._started = false;
+    this._state = {};
   }
 
   start() {
     if (this._started) return;
     this._started = true;
+    this._load();
     this._timer = setInterval(() => this.flush(), FLUSH_INTERVAL);
     if (this._timer.unref) this._timer.unref();
   }
@@ -28,17 +30,20 @@ class StateManager {
   async get(key) {
     if (this.pending.has(key)) return this.pending.get(key);
     if (this.cache.has(key)) return this.cache.get(key);
-    const loaded = await this.#load();
-    this.cache.set(key, loaded[key]);
-    return loaded[key];
+    return this._state[key];
   }
 
   set(key, value) {
     this.pending.set(key, value);
-    if (this.pending.size >= MAX_CHANGES) this.flush();
+    this.cache.set(key, value);
+    if (this.pending.size >= MAX_CHANGES) this.#doFlush();
   }
 
   async flush() {
+    this.#doFlush();
+  }
+
+  #doFlush() {
     if (this.pending.size === 0) return;
     const updates = {};
     for (const [key, value] of this.pending) updates[key] = value;
@@ -48,29 +53,36 @@ class StateManager {
       const dir = path.dirname(this.filePath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-      let existing = {};
-      try { existing = JSON.parse(fs.readFileSync(this.filePath, 'utf-8')); } catch (err) {
-        console.error(`[STATE-MANAGER] Failed to parse state file: ${err.message}`);
-      }
       for (const [key, value] of Object.entries(updates)) {
-        existing[key] = value;
-        this.cache.set(key, value);
+        this._state[key] = value;
       }
-      fs.writeFileSync(this.filePath, JSON.stringify(existing, null, 2), 'utf-8');
+      fs.writeFileSync(this.filePath, JSON.stringify(this._state, null, 2), 'utf-8');
+
+      const now = Date.now();
+      const logPath = this.filePath + '.journal';
+      const line = JSON.stringify({ t: now, updates }) + '\n';
+      fs.appendFileSync(logPath, line, 'utf-8');
     } catch (err) {
-      console.error(`[STATE-MANAGER] Failed to write state file: ${err.message}`);
+      console.error(`[STATE-MANAGER] Failed to write state: ${err.message}`);
     }
   }
 
-  async #load() {
+  _load() {
     try {
       if (fs.existsSync(this.filePath)) {
-        return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
+        const raw = fs.readFileSync(this.filePath, 'utf-8');
+        if (raw.charCodeAt(0) === 0xFEFF) {
+          this._state = JSON.parse(raw.slice(1));
+        } else {
+          this._state = JSON.parse(raw);
+        }
+        for (const [key, value] of Object.entries(this._state)) {
+          this.cache.set(key, value);
+        }
       }
     } catch (err) {
-      console.error(`[STATE-MANAGER] Failed to load state file: ${err.message}`);
+      console.error(`[STATE-MANAGER] Failed to load state: ${err.message}`);
     }
-    return {};
   }
 }
 

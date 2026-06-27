@@ -41,7 +41,7 @@ export class TaskRunner {
   }
 
   async execute(task) {
-    const copy = { ...task, context: { ...(task.context || {}) } };
+    const copy = JSON.parse(JSON.stringify(task));
 
     if (!canTransition(copy.state, TASK_STATES.EXECUTING)) {
       throw new Error(`Cannot execute task in state: ${copy.state}`);
@@ -66,7 +66,7 @@ export class TaskRunner {
   }
 
   async validate(task) {
-    const copy = { ...task, context: { ...(task.context || {}) } };
+    const copy = JSON.parse(JSON.stringify(task));
 
     if (!canTransition(copy.state, TASK_STATES.VALIDATING)) return;
 

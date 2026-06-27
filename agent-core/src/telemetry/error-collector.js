@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export class ErrorCollector {
   constructor(options = {}) {
     this.buffer = [];
@@ -7,6 +9,8 @@ export class ErrorCollector {
     this.fallback = options.fallback || null;
     this._timer = null;
     this._started = false;
+    this._seen = new Map();
+    this._dedupWindowMs = 60000;
   }
 
   start() {
@@ -35,11 +39,35 @@ export class ErrorCollector {
       severity,
     };
 
+    if (this.#isDuplicate(entry)) return;
+
     this.buffer.push(entry);
 
     if (this.buffer.length >= this.maxSize) {
       setImmediate(() => this.flush());
     }
+  }
+
+  #isDuplicate(entry) {
+    const key = crypto
+      .createHash('sha256')
+      .update(`${entry.source}:${entry.error_type}:${entry.message.slice(0, 100)}`)
+      .digest('hex');
+
+    const now = Date.now();
+    const lastSeen = this._seen.get(key);
+    if (lastSeen && (now - lastSeen) < this._dedupWindowMs) return true;
+
+    this._seen.set(key, now);
+
+    if (this._seen.size > 1000) {
+      const cutoff = now - this._dedupWindowMs;
+      for (const [k, t] of this._seen) {
+        if (t < cutoff) this._seen.delete(k);
+      }
+    }
+
+    return false;
   }
 
   async flush() {

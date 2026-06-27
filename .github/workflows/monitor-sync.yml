@@ -1,0 +1,88 @@
+name: Monitor Sync Receiver
+
+on:
+  repository_dispatch:
+    types: [sync-from-obsidian]
+  workflow_dispatch:
+    inputs:
+      manual_sync:
+        description: 'Trigger manual sync from ObsiduanMain'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+  issues: write
+
+env:
+  TARGET_REPO: Konstantin2005/ObsiduanMain
+  MONITOR_DIR: .work/monitor
+  TARGET_WORK_DIR: .work/issues
+
+jobs:
+  receive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Process sync payload
+        id: process
+        run: |
+          mkdir -p ${{ env.MONITOR_DIR }}
+
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            PAYLOAD='${{ toJson(github.event.client_payload) }}'
+            echo "$PAYLOAD" > ${{ env.MONITOR_DIR }}/last-sync.json
+            echo "Received dispatch: $(echo $PAYLOAD | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("event","?"))')"
+          fi
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "{\"lastSync\":\"$TIMESTAMP\",\"source\":\"${{ github.event_name }}\"}" > ${{ env.MONITOR_DIR }}/sync-status.json
+
+      - name: Fetch latest work data from target repo
+        env:
+          GH_TOKEN: ${{ secrets.ORCHESTRATOR_PAT || github.token }}
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Fetch open issues from target
+          gh issue list --repo "${{ env.TARGET_REPO }}" --state open --json number,title,labels,updatedAt --limit 50 \
+            > ${{ env.MONITOR_DIR }}/target-open-issues.json 2>/dev/null || echo "[]" > ${{ env.MONITOR_DIR }}/target-open-issues.json
+
+          OPEN_COUNT=$(python3 -c "import json; print(len(json.load(open('${{ env.MONITOR_DIR }}/target-open-issues.json'))))" 2>/dev/null || echo "0")
+
+          echo "open=$OPEN_COUNT" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$TIMESTAMP" >> "$GITHUB_OUTPUT"
+
+          # Detect errors (check issue bodies for error patterns)
+          gh issue list --repo "${{ env.TARGET_REPO }}" --state open --json number,title --limit 50 \
+            | python3 -c "
+import json, sys
+issues = json.load(sys.stdin)
+print(f'Target repo: ${{ env.TARGET_REPO }}')
+print(f'Open issues: {len(issues)}')
+" 2>/dev/null || echo "Could not fetch issues"
+
+      - name: Update monitor dashboard
+        run: |
+          echo "# Monitor Dashboard" > ${{ env.MONITOR_DIR }}/dashboard.md
+          echo "" >> ${{ env.MONITOR_DIR }}/dashboard.md
+          echo "Last sync: ${{ steps.process.outputs.timestamp || steps.process.outputs.lastSync }}" >> ${{ env.MONITOR_DIR }}/dashboard.md
+          echo "Open issues in target: ${{ steps.fetch.outputs.open }}" >> ${{ env.MONITOR_DIR }}/dashboard.md
+          echo "" >> ${{ env.MONITOR_DIR }}/dashboard.md
+          echo "## Recent Events" >> ${{ env.MONITOR_DIR }}/dashboard.md
+
+          if [ -f "${{ env.MONITOR_DIR }}/last-sync.json" ]; then
+            cat ${{ env.MONITOR_DIR }}/last-sync.json | python3 -m json.tool >> ${{ env.MONITOR_DIR }}/dashboard.md 2>/dev/null
+          fi
+
+          cat ${{ env.MONITOR_DIR }}/dashboard.md
+
+      - name: Commit and push monitor data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ env.MONITOR_DIR }}/
+          git diff --staged --quiet && echo "No changes" && exit 0
+          git commit -m "sync: monitor update from ${{ env.TARGET_REPO }} [$(date -u +'%Y-%m-%d %H:%M')]"
+          git push

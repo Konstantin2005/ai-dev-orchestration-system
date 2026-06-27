@@ -1,40 +1,27 @@
+const { getModelForAgent, detectAvailableKeys, getActiveMode, getModeHelp } = require('../config/key-manager');
+
 const MODEL_ROUTES = {
-  backend: {
-    provider: 'anthropic',
-    model: 'claude-sonnet'
-  },
-  frontend: {
-    provider: 'google',
-    model: 'gemini-2.5-pro'
-  },
-  research: {
-    provider: 'openai',
-    model: 'gpt-4.1-mini'
-  },
-  architect: {
-    provider: 'openai',
-    model: 'gpt-4o-mini'
-  },
-  qa: {
-    provider: 'anthropic',
-    model: 'claude-sonnet'
-  },
-  reviewer: {
-    provider: 'openai',
-    model: 'gpt-4o-mini'
-  }
+  backend: { provider: 'anthropic', model: 'claude-sonnet' },
+  frontend: { provider: 'google', model: 'gemini-2.5-pro' },
+  research: { provider: 'openai', model: 'gpt-4.1-mini' },
+  architect: { provider: 'openai', model: 'gpt-4o-mini' },
+  qa: { provider: 'anthropic', model: 'claude-sonnet' },
+  reviewer: { provider: 'openai', model: 'gpt-4o-mini' },
+  documentation: { provider: 'openai', model: 'gpt-4o-mini' }
 };
 
-function getModelForAgent(agentType) {
-  const route = MODEL_ROUTES[agentType];
-  if (!route) {
-    return { provider: 'openai', model: 'gpt-4o-mini' };
-  }
-  return { ...route };
+function resolveModelForAgent(agentType, rootDir) {
+  const route = MODEL_ROUTES[agentType] || MODEL_ROUTES.architect;
+  return getModelForAgent(agentType, route.provider, route.model, rootDir);
 }
 
-function buildAgentPayload(taskId, issueUrl, repository, branch, agentType, objective, context, executionRules) {
-  const modelInfo = getModelForAgent(agentType);
+function getModelForAgentType(agentType, rootDir) {
+  const resolved = resolveModelForAgent(agentType, rootDir);
+  return { ...resolved };
+}
+
+function buildAgentPayload(taskId, issueUrl, repository, branch, agentType, objective, context, executionRules, rootDir) {
+  const modelInfo = resolveModelForAgent(agentType, rootDir);
   return {
     task_id: taskId,
     issue_url: issueUrl,
@@ -71,9 +58,23 @@ function validatePayload(payload) {
   return { valid: errors.length === 0, errors };
 }
 
+function printKeyStatus() {
+  const available = detectAvailableKeys();
+  const mode = getActiveMode();
+  console.log(`\nKey mode: ${mode.label}`);
+  console.log('Available keys:');
+  for (const [provider, present] of Object.entries(available)) {
+    console.log(`  ${provider}: ${present ? '✅' : '❌'}`);
+  }
+}
+
 module.exports = {
   MODEL_ROUTES,
-  getModelForAgent,
+  getModelForAgent: getModelForAgentType,
+  getModelForAgentType,
+  resolveModelForAgent,
   buildAgentPayload,
-  validatePayload
+  validatePayload,
+  printKeyStatus,
+  getModeHelp
 };

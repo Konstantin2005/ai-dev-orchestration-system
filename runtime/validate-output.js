@@ -1,11 +1,10 @@
-/**
- * Zero-Trust JSON Validator for AI Orchestrator output
- * Usage: node validate-output.js <workspace-prefix> < ai-output.json
- */
+const fs = require('fs');
+const path = require('path');
 
 const WORKSPACE_PREFIX = process.argv[2] || 'workspace/issues/';
 const MAX_CONTENT_LENGTH = 50000;
 const MAX_FILES = 50;
+const MIN_FILES = 1;
 const ALLOWED_EXTENSIONS = ['.md', '.json', '.log', '.txt', '.yml', '.yaml', '.js', '.ts', '.py', '.sh'];
 const FORBIDDEN_PATTERNS = ['../', '..\\', '~', '$HOME', '/etc/', '/proc/', '/dev/'];
 const FORBIDDEN_CONTENT_PATTERNS = [
@@ -43,6 +42,9 @@ process.stdin.on('end', () => {
   if (!Array.isArray(data.files) || data.files.length === 0)
     error('SCHEMA', 'files must be non-empty array');
 
+  if (data.files && data.files.length < MIN_FILES)
+    error('SCHEMA', 'Too few files (empty pipeline output). Minimum: ' + MIN_FILES);
+
   if (!['READY_FOR_PR', 'CHANGES_REQUESTED'].includes(data.status))
     error('SCHEMA', 'Invalid status: ' + data.status);
 
@@ -61,6 +63,12 @@ process.stdin.on('end', () => {
         error('FILE-' + i, 'Bad extension: ' + ext);
       if (f.content.length > MAX_CONTENT_LENGTH)
         error('FILE-' + i, 'Content too long: ' + f.content.length);
+      if (f.content.length < 50 && f.path.endsWith('.md'))
+        error('FILE-' + i, 'Stub file (too short): ' + f.path + ' (' + f.content.length + ' bytes)');
+      if (f.path.endsWith('context.md') && !f.content.includes('state:'))
+        error('FILE-' + i, 'Missing state: field in context.md');
+      if (f.content.charCodeAt(0) === 0xFFFD)
+        error('FILE-' + i, 'Encoding corruption (replacement char) in: ' + f.path);
       for (const cp of FORBIDDEN_CONTENT_PATTERNS)
         if (cp.pattern.test(f.content)) error('CONTENT-' + i, 'Forbidden pattern in content: ' + cp.description);
     }

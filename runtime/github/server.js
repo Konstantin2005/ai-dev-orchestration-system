@@ -1,5 +1,6 @@
 const express = require('express');
 const { verifySignature, parseEvent, routeEvent, formatEventSummary } = require('./webhook');
+const health = require('./health');
 
 const DEFAULT_PORT = 3000;
 const DEFAULT_HOST = '0.0.0.0';
@@ -14,9 +15,7 @@ function createApp(options = {}) {
     }
   }));
 
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
+  app.get('/health', health.handler);
 
   app.post('/webhook', async (req, res) => {
     const { event, delivery, signature, id } = parseEvent(req);

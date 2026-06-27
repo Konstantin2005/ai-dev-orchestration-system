@@ -2,12 +2,10 @@ const fs = require('fs');
 const path = require('path');
 
 const { createAdapter } = require('../adapter');
-const { readConfig } = require('../config/loader');
+const { readConfig, getRepositories } = require('../config/loader');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const WORK_DIR = path.join(ROOT, '.work', 'issues');
-const OWNER = process.env.GITHUB_OWNER || 'Konstantin2005';
-const REPO = process.env.GITHUB_REPO || 'ai-dev-orchestration-system';
 
 const AGENT_ROLES = [
   { name: 'architect', label: 'status:architect-pending', emoji: '🧭' },
@@ -138,7 +136,7 @@ async function runFullPipeline(issue, adapter) {
     const subIssue = await adapter.createIssue(
       `[${role.toUpperCase()}] ${issue.title}`,
       `## Sub-task for #${issue.number}\n\nAssigned to **${role}** agent.\n\nParent: #${issue.number}`,
-      [role === 'backend' || role === 'frontend' ? `status:${role}-pending` : `status:${role}-pending`]
+      [`status:${role}-pending`]
     );
     writeLog(dir, 'orchestrator', `Created sub-issue for ${role}: #${subIssue.number}`);
     return subIssue;
@@ -182,43 +180,63 @@ Each sub-issue will be processed by its assigned agent.`;
   return { issue: issue.number, subIssues: Object.keys(subIssues), dir };
 }
 
-async function main() {
-  console.log('\n🤖 AI ORCHESTRATOR — AUTONOMOUS MODE');
-  console.log('Scanning for open tasks...\n');
+async function processIssue(issueNumber, owner, repo, token) {
+  const adapter = createAdapter('github', owner, repo, { token });
+  const { data: issue } = await (await require('../github/client').getOctokit(token)).rest.issues.get({
+    owner, repo, issue_number: issueNumber
+  });
+  return runFullPipeline(issue, adapter);
+}
 
-  const adapter = createAdapter('github', OWNER, REPO);
+async function main(options = {}) {
+  const { owner, repo, token, issueNumber } = options;
 
-  const issues = await adapter.readIssues('open', ['task:created']);
-  console.log(`Found ${issues.length} open tasks with label 'task:created':`);
-  for (const issue of issues) {
-    console.log(`  #${issue.number}: ${issue.title}`);
+  if (owner && repo && issueNumber) {
+    return processIssue(issueNumber, owner, repo, token);
   }
 
-  if (issues.length === 0) {
-    console.log('\nNo tasks to process. Exiting.');
-    return;
+  const repos = getRepositories();
+  if (repos.length === 0) {
+    console.log('[ORCHESTRATOR] No repositories configured. Run `ai-orchestrator connect <repo-url>` first.');
+    return [];
   }
 
   const results = [];
-  for (const issue of issues) {
-    const result = await runFullPipeline(issue, adapter);
-    results.push(result);
-  }
+  for (const entry of repos) {
+    const match = entry.url.match(/github\.com\/([^/]+)\/([^/.]+)/);
+    if (!match) {
+      console.error(`[ORCHESTRATOR] Cannot parse repo URL: ${entry.url}`);
+      continue;
+    }
 
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`ORCHESTRATION SUMMARY`);
-  console.log(`${'='.repeat(60)}`);
-  for (const r of results) {
-    console.log(`  #${r.issue} → ${r.subIssues.length} sub-issues created → ${r.dir}`);
+    const repoOwner = owner || match[1];
+    const repoName = repo || match[2].replace(/\.git$/, '');
+    const adapter = createAdapter(entry.adapter || 'github', repoOwner, repoName, { token });
+
+    const issues = await adapter.readIssues('open', ['task:created']);
+    console.log(`[ORCHESTRATOR] Found ${issues.length} tasks in ${repoOwner}/${repoName}`);
+
+    for (const issue of issues) {
+      const result = await runFullPipeline(issue, adapter);
+      results.push(result);
+    }
   }
-  console.log(`\n✅ Processed ${results.length} issues.`);
+  return results;
 }
 
 if (require.main === module) {
-  main().catch(err => {
+  const args = process.argv.slice(2);
+  const opts = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--owner') opts.owner = args[++i];
+    else if (args[i] === '--repo') opts.repo = args[++i];
+    else if (args[i] === '--issue') opts.issueNumber = parseInt(args[++i], 10);
+    else if (args[i] === '--token') opts.token = args[++i];
+  }
+  main(opts).catch(err => {
     console.error(`[AUTONOMOUS] Fatal: ${err.message}`);
     process.exit(1);
   });
 }
 
-module.exports = { main, runFullPipeline };
+module.exports = { main, runFullPipeline, processIssue };

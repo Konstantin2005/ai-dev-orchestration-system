@@ -1,6 +1,7 @@
 const ALLOWED_EXTENSIONS = ['.js', '.ts', '.md', '.json', '.jsonc', '.yml', '.yaml', '.css', '.html'];
 const BLOCKED_PATTERNS = [/\.env/, /secret/i, /token/i, /password/i, /key\./i];
 const MAX_FILE_SIZE = 1024 * 1024;
+const MIN_MD_FILE_SIZE = 50;
 
 class ZeroTrustValidator {
   constructor(options = {}) {
@@ -20,6 +21,18 @@ class ZeroTrustValidator {
 
     if (file.content && file.content.length > this.maxFileSize) {
       errors.push(`File too large: ${file.content.length} bytes`);
+    }
+
+    if (file.path.endsWith('.md') && file.content && file.content.length < MIN_MD_FILE_SIZE) {
+      errors.push(`Stub file: ${file.path} is only ${file.content.length} bytes`);
+    }
+
+    if (file.path.endsWith('context.md') && file.content && !file.content.includes('state:')) {
+      errors.push(`Missing state: field in context.md`);
+    }
+
+    if (file.content && file.content.charCodeAt(0) === 0xFFFD) {
+      errors.push(`Encoding corruption (replacement char) in: ${file.path}`);
     }
 
     for (const pattern of this.blockedPatterns) {

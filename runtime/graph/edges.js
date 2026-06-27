@@ -11,6 +11,8 @@ function defineEdges(graph) {
 
   graph.addConditionalEdges('qa', qaRouter);
 
+  graph.addConditionalEdges('execution-loop', executionLoopRouter);
+
   graph.addConditionalEdges('reviewer', reviewerRouter);
 
   graph.addConditionalEdges('validate-output', validationRouter);
@@ -43,7 +45,30 @@ function qaRouter(state) {
     return 'reviewer';
   }
 
-  console.error('[EDGES] QA valid, routing to reviewer');
+  console.error('[EDGES] QA valid, routing to execution-loop');
+  return 'execution-loop';
+}
+
+function executionLoopRouter(state) {
+  const execution = state.execution || {};
+  const feedback = state._executionFeedback;
+
+  if (execution.status === 'completed' || execution.status === 'skipped') {
+    console.error('[EDGES] Execution passed, routing to reviewer');
+    return 'reviewer';
+  }
+
+  if (execution.status === 'failed' && feedback) {
+    const attempts = state.pr?.fixAttempts || 0;
+    if (attempts < 3) {
+      console.error(`[EDGES] Execution failed, routing to backend for fix (attempt ${attempts + 1})`);
+      return 'backend';
+    }
+    console.error('[EDGES] Max execution fix attempts reached, routing to reviewer anyway');
+    return 'reviewer';
+  }
+
+  console.error('[EDGES] Execution status unclear, routing to reviewer');
   return 'reviewer';
 }
 
@@ -134,4 +159,4 @@ function mergeRouter(state) {
   return END;
 }
 
-module.exports = { defineEdges, qaRouter, reviewerRouter, validationRouter, fileWriterRouter, prRouter, mergeRouter };
+module.exports = { defineEdges, qaRouter, executionLoopRouter, reviewerRouter, validationRouter, fileWriterRouter, prRouter, mergeRouter };

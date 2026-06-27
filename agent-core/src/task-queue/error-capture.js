@@ -2,15 +2,19 @@ import { createTask } from './task-schema.js';
 
 const MAX_RATE = 10;
 const WINDOW_MS = 60000;
+const CIRCUIT_BREAKER_THRESHOLD = 20;
+const CIRCUIT_BREAKER_TIMEOUT = 30000;
 
 export class ErrorCaptureLayer {
   constructor(normalizer, telemetry) {
     this.normalizer = normalizer;
     this.telemetry = telemetry;
     this.rateCounts = new Map();
+    this.circuitBreakers = new Map();
   }
 
   capture(error, source, severity = 'error') {
+    if (this.#isCircuitOpen(source)) return;
     if (this.#isRateLimited(source)) return;
 
     if (this.telemetry) {
@@ -36,7 +40,36 @@ export class ErrorCaptureLayer {
     const recent = window.filter(t => now - t < WINDOW_MS);
     recent.push(now);
     this.rateCounts.set(source, recent);
+
+    if (recent.length > CIRCUIT_BREAKER_THRESHOLD) {
+      this.#openCircuit(source);
+    }
+
     return recent.length > MAX_RATE;
+  }
+
+  #isCircuitOpen(source) {
+    const breaker = this.circuitBreakers.get(source);
+    if (!breaker) return false;
+    if (breaker.state === 'open') {
+      if (Date.now() - breaker.openedAt > CIRCUIT_BREAKER_TIMEOUT) {
+        breaker.state = 'half-open';
+        return false;
+      }
+      return true;
+    }
+    if (breaker.state === 'half-open') {
+      breaker.state = 'closed';
+      this.rateCounts.delete(source);
+      return false;
+    }
+    return false;
+  }
+
+  #openCircuit(source) {
+    if (!this.circuitBreakers.has(source) || this.circuitBreakers.get(source).state !== 'open') {
+      this.circuitBreakers.set(source, { state: 'open', openedAt: Date.now() });
+    }
   }
 
   wrap(fn, source) {

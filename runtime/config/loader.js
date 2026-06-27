@@ -12,6 +12,17 @@ function configDir(rootDir) {
   return path.resolve(rootDir || process.cwd(), CONFIG_DIR);
 }
 
+function findConfigDir(startDir) {
+  let dir = path.resolve(startDir || process.cwd());
+  while (true) {
+    const candidate = path.join(dir, CONFIG_DIR);
+    if (fs.existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null; // reached filesystem root
+    dir = parent;
+  }
+}
+
 function ensureConfigDir(rootDir) {
   const dir = configDir(rootDir);
   if (!fs.existsSync(dir)) {
@@ -39,6 +50,7 @@ function initConfig(rootDir) {
 
   const runtimeConfig = {
     version: '1.0',
+    key_mode: 'openai-only',
     scheduler: {
       interval: 60000,
       maxConcurrent: 3
@@ -80,8 +92,10 @@ function writeConfigFile(dir, filename, content) {
 }
 
 function readConfig(rootDir) {
-  const dir = configDir(rootDir);
+  const dir = findConfigDir(rootDir) || configDir(rootDir);
   const result = { agents: null, runtime: null, connection: null };
+
+  if (!fs.existsSync(dir)) return result;
 
   const agentsPath = path.join(dir, CONFIG_FILES.AGENTS);
   const runtimePath = path.join(dir, CONFIG_FILES.RUNTIME);
@@ -107,7 +121,8 @@ function addRepository(rootDir, repoUrl, adapterType) {
 }
 
 function getRepositories(rootDir) {
-  const dir = configDir(rootDir);
+  const dir = findConfigDir(rootDir);
+  if (!dir) return [];
   const connectionPath = path.join(dir, CONFIG_FILES.CONNECTION);
   if (!fs.existsSync(connectionPath)) return [];
   const connection = JSON.parse(fs.readFileSync(connectionPath, 'utf-8'));
@@ -205,6 +220,7 @@ module.exports = {
   CONFIG_DIR,
   CONFIG_FILES,
   configDir,
+  findConfigDir,
   ensureConfigDir,
   initConfig,
   readConfig,

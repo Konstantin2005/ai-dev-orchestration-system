@@ -1,7 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { qaRouter, reviewerRouter, validationRouter, fileWriterRouter, prRouter, mergeRouter } = require('../runtime/graph/edges');
+const { qaRouter, executionLoopRouter, reviewerRouter, validationRouter, fileWriterRouter, prRouter, mergeRouter } = require('../runtime/graph/edges');
 
 describe('edges.js', () => {
   describe('qaRouter', () => {
@@ -13,12 +13,12 @@ describe('edges.js', () => {
       assert.equal(qaRouter(state), 'backend');
     });
 
-    it('routes to reviewer when validation valid', () => {
+    it('routes to execution-loop when validation valid', () => {
       const state = {
         validation: { status: 'valid', errors: [] },
         execution: { status: 'running', current_node: 'qa', attempts: 0 }
       };
-      assert.equal(qaRouter(state), 'reviewer');
+      assert.equal(qaRouter(state), 'execution-loop');
     });
 
     it('routes to backend for fix on first invalid attempt', () => {
@@ -61,24 +61,66 @@ describe('edges.js', () => {
       assert.equal(qaRouter(state), 'reviewer');
     });
 
-    it('defaults to reviewer when validation status unknown', () => {
+    it('defaults to execution-loop when validation status unknown', () => {
       const state = {
         validation: { status: 'unknown', errors: [] },
         execution: { status: 'running', current_node: 'qa' }
       };
-      assert.equal(qaRouter(state), 'reviewer');
+      assert.equal(qaRouter(state), 'execution-loop');
     });
 
     it('handles missing validation gracefully', () => {
       const state = { execution: { status: 'running' } };
       const result = qaRouter(state);
-      assert.equal(result, 'reviewer');
+      assert.equal(result, 'execution-loop');
     });
 
     it('handles missing execution gracefully', () => {
       const state = { validation: { status: 'valid' } };
       const result = qaRouter(state);
-      assert.equal(result, 'reviewer');
+      assert.equal(result, 'execution-loop');
+    });
+  });
+
+  describe('executionLoopRouter', () => {
+    it('routes to reviewer when execution completed', () => {
+      const state = {
+        execution: { status: 'completed', current_node: 'execution-loop' },
+        _executionFeedback: null
+      };
+      assert.equal(executionLoopRouter(state), 'reviewer');
+    });
+
+    it('routes to reviewer when execution skipped', () => {
+      const state = {
+        execution: { status: 'skipped', current_node: 'execution-loop' }
+      };
+      assert.equal(executionLoopRouter(state), 'reviewer');
+    });
+
+    it('routes to backend for fix when execution failed with feedback', () => {
+      const state = {
+        execution: { status: 'failed', current_node: 'execution-loop' },
+        _executionFeedback: [{ file: 'test.js', error: 'SyntaxError' }],
+        pr: { fixAttempts: 0 }
+      };
+      assert.equal(executionLoopRouter(state), 'backend');
+    });
+
+    it('routes to reviewer after max fix attempts', () => {
+      const state = {
+        execution: { status: 'failed', current_node: 'execution-loop' },
+        _executionFeedback: [{ file: 'test.js', error: 'SyntaxError' }],
+        pr: { fixAttempts: 3 }
+      };
+      assert.equal(executionLoopRouter(state), 'reviewer');
+    });
+
+    it('routes to reviewer when status unclear', () => {
+      const state = {
+        execution: { status: 'unknown', current_node: 'execution-loop' }
+      };
+      assert.equal(executionLoopRouter(state), 'reviewer');
     });
   });
 

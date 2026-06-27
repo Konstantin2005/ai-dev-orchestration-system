@@ -40,9 +40,16 @@ class GitHubAdapter extends RepositoryAdapter {
   }
 
   async push() {
-    const { execSync } = require('child_process');
-    execSync(`git -C "${this._workDir}" push origin HEAD`, { stdio: 'pipe' });
-    return { pushed: true };
+    const { exec } = require('child_process');
+    return new Promise((resolve, reject) => {
+      exec(`git push origin HEAD`, { cwd: this._workDir, timeout: 60000 }, (err, stdout, stderr) => {
+        if (err) {
+          reject(new Error(`Git push failed: ${stderr || err.message}`));
+        } else {
+          resolve({ pushed: true, stdout: stdout.trim() });
+        }
+      });
+    });
   }
 
   async createPR(title, body, head, base) {
