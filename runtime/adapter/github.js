@@ -10,6 +10,8 @@ const {
   createPR
 } = require('../github/client');
 
+const { execSync } = require('child_process');
+
 const { cloneRepo, createBranch, commitAndPush, analyzeRepo, getGitInfo, repoExists } = require('../target-repo/manager');
 
 class GitHubAdapter extends RepositoryAdapter {
@@ -87,6 +89,20 @@ class GitHubAdapter extends RepositoryAdapter {
 
   async repoExists() {
     return repoExists(this._workDir);
+  }
+
+  async createIssue(title, body, labels) {
+    return createIssue(this._owner, this._repo, title, body, labels, { token: this._token });
+  }
+
+  async updateLabels(issueNumber, { add, remove }) {
+    const octokit = getOctokit(this._token);
+    const { data: current } = await octokit.rest.issues.get({
+      owner: this._owner, repo: this._repo, issue_number: issueNumber
+    });
+    const existing = current.labels.map(l => l.name);
+    const newLabels = [...existing.filter(l => !(remove || []).includes(l)), ...(add || [])];
+    return updateIssueLabels(this._owner, this._repo, issueNumber, newLabels, { token: this._token });
   }
 }
 
