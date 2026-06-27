@@ -1,0 +1,11 @@
+{
+  "repositories": [
+    {
+      "url": "https://github.com/Konstantin2005/ai-dev-orchestration-system.git",
+      "adapter": "github",
+      "addedAt": "2026-06-27T03:09:54.399Z"
+    }
+  ],
+  "defaultAdapter": "github",
+  "syncInterval": 30000
+}

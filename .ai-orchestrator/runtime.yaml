@@ -1,0 +1,15 @@
+version: 1.0
+scheduler:
+  interval: 60000
+  maxConcurrent: 3
+logging:
+  level: info
+  format: structured
+  output:
+  - github
+  - file
+execution:
+  retryAttempts: 3
+  timeoutMs: 300000
+  mustPlanBeforeCode: true
+  mustWriteTests: true

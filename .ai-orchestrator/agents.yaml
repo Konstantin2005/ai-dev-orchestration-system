@@ -1,0 +1,24 @@
+version: 1.0
+agents:
+  architect:
+    model: gpt-4o-mini
+    provider: openai
+    enabled: true
+  backend:
+    model: claude-sonnet
+    provider: anthropic
+    enabled: true
+  frontend:
+    model: gemini-2.5-pro
+    provider: google
+    enabled: true
+  qa:
+    model: claude-sonnet
+    provider: anthropic
+    enabled: true
+  reviewer:
+    model: gpt-4o-mini
+    provider: openai
+    enabled: true
+routing:
+  strategy: model-based
