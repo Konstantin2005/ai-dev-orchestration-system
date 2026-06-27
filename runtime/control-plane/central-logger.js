@@ -41,7 +41,9 @@ class CentralLogger {
       const filePath = path.join(dir, `${new Date().toISOString().slice(0, 10)}.log`);
       const lines = entries.map(e => JSON.stringify(e)).join('\n') + '\n';
       fs.appendFileSync(filePath, lines, 'utf-8');
-    } catch { }
+    } catch (err) {
+      console.error(`[CENTRAL-LOGGER] Flush error for "${stream}": ${err.message}`);
+    }
   }
 
   flushAll() {

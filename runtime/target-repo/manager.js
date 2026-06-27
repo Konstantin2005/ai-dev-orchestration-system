@@ -42,7 +42,7 @@ function commitAndPush(repoDir, message) {
   }
 
   execSync(`git -C "${repoDir}" add -A`, { stdio: 'pipe' });
-  execSync(`git -C "${repoDir}" commit -m "${_escapeShell(message)}"`, { stdio: 'pipe' });
+  execSync(`git -C "${repoDir}" commit -F -`, { input: message, stdio: ['pipe', 'pipe', 'pipe'] });
   execSync(`git -C "${repoDir}" push origin HEAD`, { stdio: 'pipe' });
   result.pushed = true;
   return result;

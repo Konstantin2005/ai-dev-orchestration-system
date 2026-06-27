@@ -4,8 +4,8 @@ const path = require('path');
 const { createAdapter } = require('../adapter');
 const { readConfig } = require('../config/loader');
 
-const OWNER = 'Konstantin2005';
-const REPO = 'ai-dev-orchestration-system';
+const OWNER = process.env.GITHUB_OWNER || 'Konstantin2005';
+const REPO = process.env.GITHUB_REPO || 'ai-dev-orchestration-system';
 const WORK_DIR = path.resolve(__dirname, '..', '..', '.work', 'issues');
 
 const AGENT_ACTIONS = {

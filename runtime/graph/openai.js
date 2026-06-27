@@ -64,9 +64,18 @@ async function callOpenAIJSON(systemPrompt, userInput, options = {}) {
   try {
     return JSON.parse(text);
   } catch (err) {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
+    let braceDepth = 0;
+    let start = -1;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '{') {
+        if (braceDepth === 0) start = i;
+        braceDepth++;
+      } else if (text[i] === '}') {
+        braceDepth--;
+        if (braceDepth === 0 && start !== -1) {
+          return JSON.parse(text.slice(start, i + 1));
+        }
+      }
     }
     throw new Error(`Failed to parse OpenAI response as JSON: ${err.message}`);
   }

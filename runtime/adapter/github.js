@@ -10,8 +10,6 @@ const {
   createPR
 } = require('../github/client');
 
-const { execSync } = require('child_process');
-
 const { cloneRepo, createBranch, commitAndPush, analyzeRepo, getGitInfo, repoExists } = require('../target-repo/manager');
 
 class GitHubAdapter extends RepositoryAdapter {

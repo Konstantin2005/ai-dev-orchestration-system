@@ -49,13 +49,17 @@ class StateManager {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
       let existing = {};
-      try { existing = JSON.parse(fs.readFileSync(this.filePath, 'utf-8')); } catch { }
+      try { existing = JSON.parse(fs.readFileSync(this.filePath, 'utf-8')); } catch (err) {
+        console.error(`[STATE-MANAGER] Failed to parse state file: ${err.message}`);
+      }
       for (const [key, value] of Object.entries(updates)) {
         existing[key] = value;
         this.cache.set(key, value);
       }
       fs.writeFileSync(this.filePath, JSON.stringify(existing, null, 2), 'utf-8');
-    } catch { }
+    } catch (err) {
+      console.error(`[STATE-MANAGER] Failed to write state file: ${err.message}`);
+    }
   }
 
   async #load() {
@@ -63,7 +67,9 @@ class StateManager {
       if (fs.existsSync(this.filePath)) {
         return JSON.parse(fs.readFileSync(this.filePath, 'utf-8'));
       }
-    } catch { }
+    } catch (err) {
+      console.error(`[STATE-MANAGER] Failed to load state file: ${err.message}`);
+    }
     return {};
   }
 }

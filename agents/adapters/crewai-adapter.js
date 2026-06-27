@@ -26,8 +26,9 @@ class CrewAIAdapter extends AgentAdapter {
 
     try {
       const output = execSync(
-        `echo ${JSON.stringify(config)} | docker run --rm -i ${this._dockerImage} crewai-run`,
+        `docker run --rm -i ${this._dockerImage} crewai-run`,
         {
+          input: config,
           encoding: 'utf-8',
           timeout: 120000,
           maxBuffer: 10 * 1024 * 1024

@@ -6,8 +6,8 @@ const { readConfig } = require('../config/loader');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const WORK_DIR = path.join(ROOT, '.work', 'issues');
-const OWNER = 'Konstantin2005';
-const REPO = 'ai-dev-orchestration-system';
+const OWNER = process.env.GITHUB_OWNER || 'Konstantin2005';
+const REPO = process.env.GITHUB_REPO || 'ai-dev-orchestration-system';
 
 const AGENT_ROLES = [
   { name: 'architect', label: 'status:architect-pending', emoji: '🧭' },

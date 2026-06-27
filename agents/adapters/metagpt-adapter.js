@@ -26,8 +26,9 @@ class MetaGPTAdapter extends AgentAdapter {
 
     try {
       const output = execSync(
-        `echo ${JSON.stringify(config)} | docker run --rm -i ${this._dockerImage} metagpt-run`,
+        `docker run --rm -i ${this._dockerImage} metagpt-run`,
         {
+          input: config,
           encoding: 'utf-8',
           timeout: 300000,
           maxBuffer: 10 * 1024 * 1024

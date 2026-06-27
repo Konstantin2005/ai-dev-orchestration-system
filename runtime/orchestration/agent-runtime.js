@@ -13,7 +13,7 @@ class AgentRuntime {
       agentType: null,
       repository: null,
       branch: null,
-      objectiv: null,
+      objective: null,
       status: 'initialized'
     };
   }
@@ -48,7 +48,7 @@ class AgentRuntime {
     this.state.agentType = payload.agent_type;
     this.state.repository = payload.repository;
     this.state.branch = payload.branch;
-    this.state.objectiv = payload.objective;
+    this.state.objective = payload.objective;
     this.state.status = 'running';
   }
 
